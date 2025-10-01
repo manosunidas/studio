@@ -1,6 +1,7 @@
 export type ItemCategory = 'Útiles' | 'Libros' | 'Uniformes';
 export type ItemCondition = 'Nuevo' | 'Como nuevo' | 'Usado';
 export type ItemGradeLevel = 'Primaria' | 'Secundaria' | 'Bachillerato' | 'Todos';
+export type ItemStatus = 'Disponible' | 'Reservado' | 'Entregado';
 
 export type Item = {
   id: string;
@@ -14,6 +15,7 @@ export type Item = {
   postedBy: string; // User's email
   isReserved: boolean;
   reservedBy?: string; // User's email
+  status: ItemStatus;
 };
 
 export type User = {

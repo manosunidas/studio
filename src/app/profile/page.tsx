@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 export default function ProfilePage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { items, loading: itemsLoading } = useItems();
+  const { items, deleteItem, loading: itemsLoading } = useItems();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -27,6 +27,14 @@ export default function ProfilePage() {
       router.push('/login');
     }
   }, [user, authLoading, router, toast]);
+
+  const handleDeleteItem = (itemId: string) => {
+    deleteItem(itemId);
+    toast({
+      title: 'Artículo eliminado',
+      description: 'Tu publicación ha sido eliminada con éxito.'
+    })
+  }
 
   if (authLoading || itemsLoading || !user) {
     return <div className="container text-center py-20">Cargando perfil...</div>;
@@ -78,7 +86,7 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {userItems.length > 0 ? (
-                userItems.map(item => <ItemCard key={item.id} item={item} />)
+                userItems.map(item => <ItemCard key={item.id} item={item} showDelete={true} onDelete={handleDeleteItem} />)
               ) : (
                 <p>Aún no has publicado ningún artículo.</p>
               )}

@@ -50,5 +50,11 @@ export function useItems() {
     return items.find(item => item.id === itemId);
   }, [items]);
 
-  return { items, loading, addItem, updateItem, getItem };
+  const deleteItem = useCallback((itemId: string) => {
+    const newItems = items.filter(item => item.id !== itemId);
+    setItems(newItems);
+    updateLocalStorage(newItems);
+  }, [items]);
+
+  return { items, loading, addItem, updateItem, getItem, deleteItem };
 }

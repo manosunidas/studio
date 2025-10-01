@@ -72,6 +72,7 @@ export default function PostItemPage() {
         imageHint: 'custom item',
         postedBy: user.email,
         isReserved: false,
+        status: 'Disponible' as const,
       };
       addItem(newItem);
       toast({

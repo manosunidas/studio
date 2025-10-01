@@ -18,6 +18,7 @@ export const items: Item[] = [
     imageHint: getImage('item-1').imageHint,
     postedBy: 'Ana G.',
     isReserved: false,
+    status: 'Disponible',
   },
   {
     id: '2',
@@ -30,6 +31,7 @@ export const items: Item[] = [
     imageHint: getImage('item-2').imageHint,
     postedBy: 'Luis M.',
     isReserved: false,
+    status: 'Disponible',
   },
   {
     id: '3',
@@ -42,6 +44,7 @@ export const items: Item[] = [
     imageHint: getImage('item-3').imageHint,
     postedBy: 'Carla P.',
     isReserved: false,
+    status: 'Disponible',
   },
   {
     id: '4',
@@ -54,6 +57,8 @@ export const items: Item[] = [
     imageHint: getImage('item-4').imageHint,
     postedBy: 'Jorge F.',
     isReserved: true,
+    reservedBy: 'test@test.com',
+    status: 'Reservado',
   },
   {
     id: '5',
@@ -66,6 +71,7 @@ export const items: Item[] = [
     imageHint: getImage('item-5').imageHint,
     postedBy: 'Sofia R.',
     isReserved: false,
+    status: 'Disponible',
   },
   {
     id: '6',
@@ -78,6 +84,7 @@ export const items: Item[] = [
     imageHint: getImage('item-6').imageHint,
     postedBy: 'Miguel A.',
     isReserved: false,
+    status: 'Disponible',
   },
   {
     id: '7',
@@ -90,6 +97,7 @@ export const items: Item[] = [
     imageHint: getImage('item-7').imageHint,
     postedBy: 'Laura V.',
     isReserved: false,
+    status: 'Disponible',
   },
   {
     id: '8',
@@ -102,5 +110,6 @@ export const items: Item[] = [
     imageHint: getImage('item-8').imageHint,
     postedBy: 'Daniela C.',
     isReserved: false,
+    status: 'Disponible',
   },
 ];

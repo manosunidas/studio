@@ -6,16 +6,27 @@ import { notFound, useRouter, useParams } from 'next/navigation';
 import { useItems } from '@/hooks/use-items';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Heart, User, MapPin, Tag, ArrowLeft } from 'lucide-react';
+import { Heart, User, MapPin, Tag, ArrowLeft, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
 import { useAuth } from '@/hooks/use-auth';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 export default function ItemPage() {
   const params = useParams();
-  const { items, updateItem } = useItems();
-  const { user } = useAuth();
+  const { items, updateItem, deleteItem } = useItems();
+  const { user, loading: authLoading } = useAuth();
   const [item, setItem] = useState<Item | null>(null);
   const router = useRouter();
   const { toast } = useToast();
@@ -42,7 +53,7 @@ export default function ItemPage() {
       router.push('/login');
       return;
     }
-    const updatedItem = { ...item, isReserved: true, reservedBy: user.email };
+    const updatedItem = { ...item, isReserved: true, reservedBy: user.email, status: 'Reservado' as const };
     updateItem(item.id, updatedItem);
     setItem(updatedItem);
     toast({
@@ -50,13 +61,44 @@ export default function ItemPage() {
         description: 'Has reservado este artículo con éxito.',
     });
   };
+  
+  const handleCancelReservation = () => {
+    if (!item) return;
+    const updatedItem = { ...item, isReserved: false, reservedBy: undefined, status: 'Disponible' as const };
+    updateItem(item.id, updatedItem);
+    setItem(updatedItem);
+     toast({
+        title: 'Reserva cancelada',
+        description: 'Has cancelado la reserva de este artículo.',
+    });
+  }
 
-  if (!item) {
+  const handleRemoveItem = () => {
+    if(!item) return;
+    deleteItem(item.id);
+    toast({
+        title: 'Artículo eliminado',
+        description: 'El artículo ha sido eliminado de la plataforma.',
+    });
+    router.push('/profile');
+  }
+
+  if (authLoading || !item) {
     return <div className="container text-center py-20">Cargando artículo...</div>;
   }
 
   const isOwner = user?.email === item.postedBy;
   const canReserve = !item.isReserved && !isOwner;
+  const hasReserved = item.isReserved && item.reservedBy === user?.email;
+  const isReservedByOther = item.isReserved && item.reservedBy !== user?.email && !isOwner;
+
+  const getContactEmail = () => {
+    if (isOwner && item.reservedBy) return item.reservedBy;
+    if (hasReserved) return item.postedBy;
+    return null;
+  }
+
+  const contactEmail = getContactEmail();
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-12 md:py-20">
@@ -70,6 +112,11 @@ export default function ItemPage() {
             sizes="(max-width: 768px) 100vw, 50vw"
             data-ai-hint={item.imageHint}
           />
+           {item.isReserved && (
+             <div className="absolute top-4 left-4">
+              <Badge variant="destructive" className="text-lg">Reservado</Badge>
+             </div>
+           )}
         </div>
         <div className="flex flex-col gap-6">
           <div>
@@ -82,10 +129,17 @@ export default function ItemPage() {
                     Volver al Perfil
                   </Button>
                   )}
-                  <Button onClick={handleReserve} size="lg" disabled={!canReserve}>
-                    <Heart className="mr-2 h-5 w-5" />
-                    {item.isReserved ? 'Reservado' : 'Reservar'}
-                  </Button>
+                  {canReserve && (
+                    <Button onClick={handleReserve} size="lg">
+                      <Heart className="mr-2 h-5 w-5" />
+                      Reservar
+                    </Button>
+                  )}
+                  {hasReserved && (
+                     <Button onClick={handleCancelReservation} size="lg" variant="destructive">
+                      Cancelar Reserva
+                    </Button>
+                  )}
                 </div>
             </div>
             <p className="text-lg text-muted-foreground mt-2">
@@ -124,14 +178,54 @@ export default function ItemPage() {
                 </div>
             </CardContent>
           </Card>
-           {item.isReserved && (
+           
+           {isReservedByOther && (
             <div className="p-4 bg-yellow-100 dark:bg-yellow-900/50 border border-yellow-300 dark:border-yellow-700 rounded-lg text-center text-yellow-800 dark:text-yellow-200">
-              {item.reservedBy === user?.email ? 'Has reservado este artículo.' : `Reservado por ${item.reservedBy?.split('@')[0]}`}
+              Este artículo ya ha sido reservado por otro usuario.
             </div>
           )}
+
+           {contactEmail && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Coordinar Entrega</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <p>Ponte en contacto para coordinar la recogida del artículo.</p>
+                   <Button asChild variant="outline">
+                    <a href={`mailto:${contactEmail}`}>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Contactar por correo: {contactEmail}
+                    </a>
+                  </Button>
+                </CardContent>
+              </Card>
+           )}
+
            {isOwner && (
-             <div className="p-4 bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-700 rounded-lg text-center text-blue-800 dark:text-blue-200">
-              Eres el propietario de este artículo.
+             <div className="p-4 bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-700 rounded-lg text-center text-blue-800 dark:text-blue-200 flex items-center justify-between">
+              <div>
+                <p className="font-bold">Eres el propietario de este artículo.</p>
+                {item.isReserved && <p className="text-sm">Reservado por: {item.reservedBy}</p>}
+              </div>
+              
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive">Marcar como Entregado</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Confirmas la entrega?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción eliminará la publicación de la plataforma. Asegúrate de que el artículo ya ha sido recogido por el solicitante. Esta acción no se puede deshacer.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleRemoveItem}>Confirmar Entrega</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
            )}
         </div>
