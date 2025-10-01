@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Carousel,
   CarouselContent,
@@ -6,11 +8,18 @@ import {
   CarouselPrevious,
 } from '@/components/ui/carousel';
 import { ItemCard } from './item-card';
-import { items } from '@/lib/mock-data';
+import { useItems } from '@/hooks/use-items';
 
 export function SuggestedItems() {
+  const { items } = useItems();
+  
   // In a real app, this data would come from an AI recommendation engine.
-  const suggestedItems = items.filter(item => !item.isReserved).slice(0, 5);
+  // For now, we'll take a few available items.
+  const suggestedItems = items.filter(item => !item.isReserved).slice(0, 8);
+  
+  if (suggestedItems.length === 0) {
+    return null;
+  }
 
   return (
     <section className="w-full py-16 md:py-24 bg-background">
@@ -25,7 +34,7 @@ export function SuggestedItems() {
             <Carousel
                 opts={{
                     align: "start",
-                    loop: true,
+                    loop: suggestedItems.length > 4, // Only loop if there are enough items to scroll
                 }}
                 className="w-full"
             >

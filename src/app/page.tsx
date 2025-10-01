@@ -1,3 +1,4 @@
+'use client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,12 +10,28 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ItemCard } from '@/components/item-card';
-import { items } from '@/lib/mock-data';
+import { useItems } from '@/hooks/use-items';
 import { ArrowRight, Search } from 'lucide-react';
 import { SuggestedItems } from '@/components/suggested-items';
+import { useState } from 'react';
+import type { ItemCategory, ItemCondition } from '@/lib/types';
+
 
 export default function Home() {
-  const availableItems = items.filter(item => !item.isReserved);
+  const { items } = useItems();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [category, setCategory] = useState<ItemCategory | 'all'>('all');
+  const [condition, setCondition] = useState<ItemCondition | 'all'>('all');
+
+  const filteredItems = items.filter(item => {
+    const isAvailable = !item.isReserved;
+    const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          item.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = category === 'all' || item.category === category;
+    const matchesCondition = condition === 'all' || item.condition === condition;
+    
+    return isAvailable && matchesSearch && matchesCategory && matchesCondition;
+  });
 
   return (
     <div className="flex flex-col">
@@ -51,37 +68,45 @@ export default function Home() {
             <div className="flex flex-col md:flex-row gap-4">
               <div className="relative flex-grow">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Buscar por palabra clave..." className="pl-10 w-full" />
+                <Input 
+                  placeholder="Buscar por palabra clave..." 
+                  className="pl-10 w-full"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
-              <Select>
+              <Select onValueChange={(value: ItemCategory | 'all') => setCategory(value)} defaultValue="all">
                 <SelectTrigger className="w-full md:w-[200px]">
                   <SelectValue placeholder="Categoría" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las categorías</SelectItem>
-                  <SelectItem value="utiles">Útiles escolares</SelectItem>
-                  <SelectItem value="libros">Libros</SelectItem>
-                  <SelectItem value="uniformes">Uniformes</SelectItem>
+                  <SelectItem value="Útiles">Útiles escolares</SelectItem>
+                  <SelectItem value="Libros">Libros</SelectItem>
+                  <SelectItem value="Uniformes">Uniformes</SelectItem>
                 </SelectContent>
               </Select>
-              <Select>
+              <Select onValueChange={(value: ItemCondition | 'all') => setCondition(value)} defaultValue="all">
                 <SelectTrigger className="w-full md:w-[200px]">
                   <SelectValue placeholder="Condición" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Cualquier condición</SelectItem>
-                  <SelectItem value="nuevo">Nuevo</SelectItem>
-                  <SelectItem value="como-nuevo">Como nuevo</SelectItem>
-                  <SelectItem value="usado">Usado</SelectItem>
+                  <SelectItem value="Nuevo">Nuevo</SelectItem>
+                  <SelectItem value="Como nuevo">Como nuevo</SelectItem>
+                  <SelectItem value="Usado">Usado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {availableItems.map((item) => (
+              {filteredItems.map((item) => (
                 <ItemCard key={item.id} item={item} />
               ))}
             </div>
+             {filteredItems.length === 0 && (
+                <p className="text-center text-muted-foreground col-span-full">No se encontraron artículos que coincidan con tu búsqueda.</p>
+              )}
           </div>
         </div>
       </section>

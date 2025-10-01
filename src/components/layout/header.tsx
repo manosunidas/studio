@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { HandHeart, Menu, PlusCircle, UserCircle } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { HandHeart, Menu, UserCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,6 +15,8 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
 
 const navLinks = [
   { href: '/', label: 'Inicio' },
@@ -23,8 +25,19 @@ const navLinks = [
 
 export function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isSheetOpen, setSheetOpen] = useState(false);
-  const isAuthenticated = false; // Mock authentication state
+  const { user, logout } = useAuth();
+  const { toast } = useToast();
+
+  const handleLogout = () => {
+    logout();
+    toast({
+      title: 'Sesión cerrada',
+      description: 'Has cerrado sesión exitosamente.',
+    });
+    router.push('/');
+  }
 
   const NavLink = ({ href, label }: { href: string; label: string }) => (
     <Link
@@ -41,7 +54,7 @@ export function Header() {
 
   const AuthButtons = () => (
     <div className="flex items-center gap-2">
-      {isAuthenticated ? (
+      {user ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="secondary" size="icon" className="rounded-full">
@@ -59,7 +72,7 @@ export function Header() {
               <Link href="/post-item">Publicar Artículo</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Cerrar Sesión</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
@@ -116,10 +129,10 @@ export function Header() {
                   ))}
                 </nav>
                 <div className="mt-auto border-t pt-6">
-                  {isAuthenticated ? (
+                  {user ? (
                      <div className="flex flex-col gap-4">
                         <Link href="/profile" className="flex items-center gap-2 text-sm font-medium" onClick={() => setSheetOpen(false)}><UserCircle/> Mi Perfil</Link>
-                        <Button>Cerrar Sesión</Button>
+                        <Button onClick={() => { handleLogout(); setSheetOpen(false); }}>Cerrar Sesión</Button>
                      </div>
                   ) : (
                     <div className="flex flex-col gap-4">

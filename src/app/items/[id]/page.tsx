@@ -1,17 +1,59 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { notFound } from 'next/navigation';
-import { items } from '@/lib/mock-data';
+import { notFound, useRouter } from 'next/navigation';
+import { useItems } from '@/hooks/use-items';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Heart, User, MapPin, Tag } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
+import type { Item } from '@/lib/types';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function ItemPage({ params }: { params: { id: string } }) {
-  const item = items.find((i) => i.id === params.id);
+  const { items, updateItem } = useItems();
+  const { user } = useAuth();
+  const [item, setItem] = useState<Item | null>(null);
+  const router = useRouter();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const foundItem = items.find((i) => i.id === params.id);
+    if (foundItem) {
+      setItem(foundItem);
+    } else if (items.length > 0) {
+      // notFound();
+    }
+  }, [items, params.id]);
+
+  const handleReserve = () => {
+    if (!item) return;
+     if (!user) {
+      toast({
+        title: 'Inicia sesión para reservar',
+        description: 'Debes iniciar sesión para poder reservar un artículo.',
+        variant: 'destructive',
+      });
+      router.push('/login');
+      return;
+    }
+    const updatedItem = { ...item, isReserved: true, reservedBy: user.email };
+    updateItem(item.id, updatedItem);
+    setItem(updatedItem);
+    toast({
+        title: '¡Artículo reservado!',
+        description: 'Has reservado este artículo con éxito.',
+    });
+  };
 
   if (!item) {
-    notFound();
+    return <div className="container text-center py-20">Cargando artículo...</div>;
   }
+
+  const isOwner = user?.email === item.postedBy;
+  const canReserve = !item.isReserved && !isOwner;
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-12 md:py-20">
@@ -30,13 +72,13 @@ export default function ItemPage({ params }: { params: { id: string } }) {
           <div>
             <div className="flex items-start justify-between">
                 <h1 className="text-3xl md:text-4xl font-bold font-headline">{item.title}</h1>
-                <Button variant={item.isReserved ? "secondary" : "default"} size="lg" disabled={item.isReserved}>
+                <Button onClick={handleReserve} size="lg" disabled={!canReserve}>
                   <Heart className="mr-2 h-5 w-5" />
                   {item.isReserved ? 'Reservado' : 'Reservar Artículo'}
                 </Button>
             </div>
             <p className="text-lg text-muted-foreground mt-2">
-              Publicado por <span className="font-semibold text-primary">{item.postedBy}</span>
+              Publicado por <span className="font-semibold text-primary">{item.postedBy.split('@')[0]}</span>
             </p>
           </div>
 
@@ -73,9 +115,14 @@ export default function ItemPage({ params }: { params: { id: string } }) {
           </Card>
            {item.isReserved && (
             <div className="p-4 bg-yellow-100 dark:bg-yellow-900/50 border border-yellow-300 dark:border-yellow-700 rounded-lg text-center text-yellow-800 dark:text-yellow-200">
-              Este artículo ya ha sido reservado por otro usuario.
+              {item.reservedBy === user?.email ? 'Has reservado este artículo.' : `Reservado por ${item.reservedBy?.split('@')[0]}`}
             </div>
           )}
+           {isOwner && (
+             <div className="p-4 bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-700 rounded-lg text-center text-blue-800 dark:text-blue-200">
+              Eres el propietario de este artículo.
+            </div>
+           )}
         </div>
       </div>
     </div>

@@ -11,6 +11,13 @@ export type Item = {
   gradeLevel: ItemGradeLevel;
   imageUrl: string;
   imageHint: string;
-  postedBy: string; // Should be a user ID in a real app
+  postedBy: string; // User's email
   isReserved: boolean;
+  reservedBy?: string; // User's email
 };
+
+export type User = {
+  name: string;
+  email: string;
+  memberSince: string; // ISO date string
+}
