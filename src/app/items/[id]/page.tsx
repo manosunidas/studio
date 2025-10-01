@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import Image from 'next/image';
-import { notFound, useRouter } from 'next/navigation';
+import { notFound, useRouter, useParams } from 'next/navigation';
 import { useItems } from '@/hooks/use-items';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,21 +12,24 @@ import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
 import { useAuth } from '@/hooks/use-auth';
 
-export default function ItemPage({ params }: { params: { id: string } }) {
+export default function ItemPage() {
+  const params = useParams();
   const { items, updateItem } = useItems();
   const { user } = useAuth();
   const [item, setItem] = useState<Item | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const id = params.id as string;
 
   useEffect(() => {
-    const foundItem = items.find((i) => i.id === params.id);
+    if (!id || items.length === 0) return;
+    const foundItem = items.find((i) => i.id === id);
     if (foundItem) {
       setItem(foundItem);
-    } else if (items.length > 0) {
+    } else {
       // notFound();
     }
-  }, [items, params.id]);
+  }, [items, id]);
 
   const handleReserve = () => {
     if (!item) return;
