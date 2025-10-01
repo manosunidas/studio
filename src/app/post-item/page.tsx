@@ -42,7 +42,7 @@ type FormData = z.infer<typeof formSchema>;
 export default function PostItemPage() {
   const router = useRouter();
   const { addItem } = useItems();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const { register, handleSubmit, control, formState: { errors } } = useForm<FormData>({
@@ -50,7 +50,7 @@ export default function PostItemPage() {
   });
 
    useEffect(() => {
-    if (!user) {
+    if (!authLoading && !user) {
       toast({
         title: 'Acceso denegado',
         description: 'Debes iniciar sesión para publicar un artículo.',
@@ -58,7 +58,7 @@ export default function PostItemPage() {
       });
       router.push('/login');
     }
-  }, [user, router, toast]);
+  }, [user, authLoading, router, toast]);
 
   const onSubmit = (data: FormData) => {
     if (!user) return;
@@ -83,7 +83,9 @@ export default function PostItemPage() {
     reader.readAsDataURL(data.picture[0]);
   };
 
-  if(!user) return null;
+  if(authLoading || !user) {
+    return <div className="container text-center py-20">Cargando...</div>;
+  }
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-12 md:py-20">
