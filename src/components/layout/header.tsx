@@ -18,17 +18,19 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 
-const navLinks = [
-  { href: '/', label: 'Inicio' },
-  { href: '/post-item', label: 'Publicar Artículo' },
-];
-
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [isSheetOpen, setSheetOpen] = useState(false);
   const { user, logout } = useAuth();
   const { toast } = useToast();
+  
+  const navLinks = [
+    { href: '/', label: 'Inicio' },
+    ...(user ? [{ href: '/profile', label: 'Mis Artículos' }] : []),
+    { href: '/post-item', label: 'Publicar Artículo' },
+  ];
+
 
   const handleLogout = () => {
     logout();
