@@ -6,7 +6,7 @@ import { notFound, useRouter, useParams } from 'next/navigation';
 import { useItems } from '@/hooks/use-items';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Heart, User, MapPin, Tag } from 'lucide-react';
+import { Heart, User, MapPin, Tag, ArrowLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
@@ -73,12 +73,20 @@ export default function ItemPage() {
         </div>
         <div className="flex flex-col gap-6">
           <div>
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-4">
                 <h1 className="text-3xl md:text-4xl font-bold font-headline">{item.title}</h1>
-                <Button onClick={handleReserve} size="lg" disabled={!canReserve}>
-                  <Heart className="mr-2 h-5 w-5" />
-                  {item.isReserved ? 'Reservado' : 'Reservar Artículo'}
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+                  {user && (
+                  <Button onClick={() => router.push('/profile')} variant="outline">
+                    <ArrowLeft className="mr-2 h-5 w-5" />
+                    Volver al Perfil
+                  </Button>
+                  )}
+                  <Button onClick={handleReserve} size="lg" disabled={!canReserve}>
+                    <Heart className="mr-2 h-5 w-5" />
+                    {item.isReserved ? 'Reservado' : 'Reservar'}
+                  </Button>
+                </div>
             </div>
             <p className="text-lg text-muted-foreground mt-2">
               Publicado por <span className="font-semibold text-primary">{item.postedBy.split('@')[0]}</span>
