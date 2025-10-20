@@ -23,12 +23,12 @@ export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [isSheetOpen, setSheetOpen] = useState(false);
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const { toast } = useToast();
-  const [isClient, setIsClient] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setIsClient(true);
+    setIsMounted(true);
   }, []);
   
   const isAdmin = user?.email === 'jhelenandreat@gmail.com';
@@ -112,7 +112,7 @@ export function Header() {
             <HandHeart className="h-6 w-6 text-primary" />
             <span className="hidden sm:inline">Manos Unidas</span>
           </Link>
-          {isClient && (
+          {isMounted && (
             <nav className="hidden md:flex items-center gap-6">
               {navLinks.map((link) => (
                 <NavLink key={link.href} {...link} />
@@ -122,7 +122,7 @@ export function Header() {
         </div>
 
         <div className="hidden md:flex items-center gap-4">
-         {isClient && <AuthButtons />}
+         {isMounted && <AuthButtons />}
         </div>
 
         <div className="md:hidden">
@@ -142,17 +142,17 @@ export function Header() {
                     </Link>
                 </div>
                 <nav className="flex flex-col gap-4 py-6">
-                  {isClient && navLinks.map((link) => (
+                  {isMounted && navLinks.map((link) => (
                     <NavLink key={link.href} {...link} />
                   ))}
                 </nav>
                 <div className="mt-auto border-t pt-6">
-                  {isClient && user ? (
+                  {isMounted && user ? (
                      <div className="flex flex-col gap-4">
                         <Link href="/profile" className="flex items-center gap-2 text-sm font-medium" onClick={() => setSheetOpen(false)}><UserCircle/> Mi Perfil</Link>
                         <Button onClick={() => { handleLogout(); setSheetOpen(false); }}>Cerrar Sesión</Button>
                      </div>
-                  ) : isClient ? (
+                  ) : isMounted ? (
                     <div className="flex flex-col gap-4">
                       <Button variant="ghost" asChild><Link href="/login" onClick={() => setSheetOpen(false)}>Iniciar Sesión</Link></Button>
                     </div>
