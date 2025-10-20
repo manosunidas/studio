@@ -25,8 +25,8 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState } from 'react';
-import { useUser, useFirestore } from '@/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
+import { collection, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 
 
@@ -69,77 +69,59 @@ export default function AdminPage() {
     setIsSubmitting(true);
 
     try {
-      const file = data.picture[0];
-      const reader = new FileReader();
-      
-      reader.onload = async (e) => {
-        const fileContent = e.target?.result as string;
-        
-        try {
-            // 1. Upload image to Firebase Storage
-            const storage = getStorage();
-            const storageRef = ref(storage, `materials/${Date.now()}_${file.name}`);
-            const snapshot = await uploadString(storageRef, fileContent, 'data_url');
-            const imageUrl = await getDownloadURL(snapshot.ref);
+        const file = data.picture[0];
+        const reader = new FileReader();
 
-            // 2. Add item to Firestore
-            const materialsCollection = collection(firestore, 'materials');
-            await addDoc(materialsCollection, {
-              title: data.title,
-              description: data.description,
-              category: data.category,
-              condition: data.condition,
-              gradeLevel: data.gradeLevel,
-              imageUrl: imageUrl,
-              imageHint: 'school supplies', // You can create a more dynamic hint later
-              postedBy: user.email,
-              postedByName: user.displayName,
-              datePosted: serverTimestamp(),
-              isReserved: false,
-              status: 'Disponible',
-            });
+        // Convert file to data URL
+        const fileAsDataURL = await new Promise<string>((resolve, reject) => {
+            reader.onload = e => resolve(e.target?.result as string);
+            reader.onerror = e => reject(e);
+            reader.readAsDataURL(file);
+        });
 
-            toast({
-              title: '¡Artículo publicado!',
-              description: 'El artículo ahora está visible para la comunidad.',
-            });
-            reset(); // Reset form fields
-        } catch (error) {
-            console.error("Error creating item:", error);
-            toast({
-                title: 'Error al publicar',
-                description: 'Hubo un problema al crear el artículo. Inténtalo de nuevo.',
-                variant: 'destructive',
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
-      };
+        // 1. Upload image to Firebase Storage
+        const storage = getStorage();
+        const storageRef = ref(storage, `materials/${Date.now()}_${file.name}`);
+        const snapshot = await uploadString(storageRef, fileAsDataURL, 'data_url');
+        const imageUrl = await getDownloadURL(snapshot.ref);
 
-      reader.onerror = (error) => {
-          console.error("FileReader error:", error);
-           toast({
-            title: 'Error al leer el archivo',
-            description: 'No se pudo cargar la imagen. Inténtalo de nuevo.',
+        // 2. Add item to Firestore using the non-blocking helper
+        const materialsCollection = collection(firestore, 'materials');
+        addDocumentNonBlocking(materialsCollection, {
+            title: data.title,
+            description: data.description,
+            category: data.category,
+            condition: data.condition,
+            gradeLevel: data.gradeLevel,
+            imageUrl: imageUrl,
+            imageHint: 'school supplies',
+            postedBy: user.email,
+            postedByName: user.displayName,
+            datePosted: serverTimestamp(),
+            isReserved: false,
+            status: 'Disponible',
+        });
+
+        toast({
+            title: '¡Artículo publicado!',
+            description: 'El artículo ahora está visible para la comunidad.',
+        });
+        reset(); // Reset form fields
+
+    } catch (error: any) {
+        console.error("Error creating item:", error);
+        toast({
+            title: 'Error al publicar',
+            description: error.message || 'Hubo un problema al crear el artículo. Inténtalo de nuevo.',
             variant: 'destructive',
-          });
-          setIsSubmitting(false);
-      }
-
-      reader.readAsDataURL(file);
-
-    } catch (error) {
-      console.error("Error preparing file:", error);
-      toast({
-        title: 'Error de Archivo',
-        description: 'Hubo un problema al preparar la imagen para subir. Inténtalo de nuevo.',
-        variant: 'destructive',
-      });
-      setIsSubmitting(false);
+        });
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
-  if (isUserLoading || (user && user.email !== 'jhelenandreat@gmail.com')) {
+
+  if (isUserLoading || !user || user.email !== 'jhelenandreat@gmail.com') {
     return <div className="container text-center py-20">Cargando panel de administración...</div>;
   }
 
