@@ -15,30 +15,41 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
-import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth as useFirebaseAuth } from '@/firebase';
+import { getAuth, signOut } from 'firebase/auth';
 
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [isSheetOpen, setSheetOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user } = useFirebaseAuth();
   const { toast } = useToast();
   
+  const isAdmin = user?.email === 'jhelenandreat@gmail.com';
+
   const navLinks = [
     { href: '/', label: 'Inicio' },
     ...(user ? [{ href: '/profile', label: 'Mis Artículos' }] : []),
+    ...(isAdmin ? [{ href: '/admin', label: 'Admin' }] : []),
     { href: '/post-item', label: 'Publicar Artículo' },
   ];
 
-
-  const handleLogout = () => {
-    logout();
-    toast({
-      title: 'Sesión cerrada',
-      description: 'Has cerrado sesión exitosamente.',
-    });
-    router.push('/');
+  const handleLogout = async () => {
+    try {
+      await signOut(getAuth());
+      toast({
+        title: 'Sesión cerrada',
+        description: 'Has cerrado sesión exitosamente.',
+      });
+      router.push('/');
+    } catch (error) {
+      toast({
+        title: 'Error al cerrar sesión',
+        description: 'Hubo un problema al cerrar tu sesión.',
+        variant: 'destructive',
+      });
+    }
   }
 
   const NavLink = ({ href, label }: { href: string; label: string }) => (
@@ -70,6 +81,11 @@ export function Header() {
             <DropdownMenuItem asChild>
               <Link href="/profile">Mi Perfil</Link>
             </DropdownMenuItem>
+             {isAdmin && (
+              <DropdownMenuItem asChild>
+                <Link href="/admin">Admin Panel</Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem asChild>
               <Link href="/post-item">Publicar Artículo</Link>
             </DropdownMenuItem>
@@ -81,9 +97,6 @@ export function Header() {
         <>
           <Button variant="ghost" asChild>
             <Link href="/login">Iniciar Sesión</Link>
-          </Button>
-          <Button asChild>
-            <Link href="/register">Registrarse</Link>
           </Button>
         </>
       )}
@@ -139,7 +152,6 @@ export function Header() {
                   ) : (
                     <div className="flex flex-col gap-4">
                       <Button variant="ghost" asChild><Link href="/login" onClick={() => setSheetOpen(false)}>Iniciar Sesión</Link></Button>
-                      <Button asChild><Link href="/register" onClick={() => setSheetOpen(false)}>Registrarse</Link></Button>
                     </div>
                   )}
                 </div>

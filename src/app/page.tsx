@@ -10,27 +10,36 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ItemCard } from '@/components/item-card';
-import { useItems } from '@/hooks/use-items';
+import { useCollection, useMemoFirebase } from '@/firebase';
 import { ArrowRight, Search } from 'lucide-react';
 import { SuggestedItems } from '@/components/suggested-items';
 import { useState } from 'react';
-import type { ItemCategory, ItemCondition } from '@/lib/types';
+import type { ItemCategory, ItemCondition, Item } from '@/lib/types';
+import { useFirestore } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
 
 
 export default function Home() {
-  const { items } = useItems();
+  const firestore = useFirestore();
   const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState<ItemCategory | 'all'>('all');
   const [condition, setCondition] = useState<ItemCondition | 'all'>('all');
 
-  const filteredItems = items.filter(item => {
-    const isAvailable = !item.isReserved;
+  const itemsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    let q = query(collection(firestore, 'materials'), where('isReserved', '==', false));
+    return q;
+  }, [firestore]);
+
+  const { data: items, isLoading } = useCollection<Item>(itemsQuery);
+
+  const filteredItems = (items || []).filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           item.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = category === 'all' || item.category === category;
     const matchesCondition = condition === 'all' || item.condition === condition;
     
-    return isAvailable && matchesSearch && matchesCategory && matchesCondition;
+    return matchesSearch && matchesCategory && matchesCondition;
   });
 
   return (
@@ -99,12 +108,17 @@ export default function Home() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredItems.map((item) => (
-                <ItemCard key={item.id} item={item} />
-              ))}
-            </div>
-             {filteredItems.length === 0 && (
+            {isLoading && <p className="text-center text-muted-foreground col-span-full">Cargando artículos...</p>}
+            
+            {!isLoading && filteredItems.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredItems.map((item) => (
+                  <ItemCard key={item.id} item={item} />
+                ))}
+              </div>
+            )}
+             
+             {!isLoading && filteredItems.length === 0 && (
                 <p className="text-center text-muted-foreground col-span-full">No se encontraron artículos que coincidan con tu búsqueda.</p>
               )}
           </div>

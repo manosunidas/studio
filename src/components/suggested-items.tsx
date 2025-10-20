@@ -8,16 +8,25 @@ import {
   CarouselPrevious,
 } from '@/components/ui/carousel';
 import { ItemCard } from './item-card';
-import { useItems } from '@/hooks/use-items';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, where, limit } from 'firebase/firestore';
+import type { Item } from '@/lib/types';
+
 
 export function SuggestedItems() {
-  const { items } = useItems();
+  const firestore = useFirestore();
+  const suggestedItemsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, 'materials'), 
+      where('isReserved', '==', false), 
+      limit(8)
+    );
+  }, [firestore]);
+
+  const { data: suggestedItems, isLoading } = useCollection<Item>(suggestedItemsQuery);
   
-  // In a real app, this data would come from an AI recommendation engine.
-  // For now, we'll take a few available items.
-  const suggestedItems = items.filter(item => !item.isReserved).slice(0, 8);
-  
-  if (suggestedItems.length === 0) {
+  if (isLoading || !suggestedItems || suggestedItems.length === 0) {
     return null;
   }
 
