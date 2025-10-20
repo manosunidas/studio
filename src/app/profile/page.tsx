@@ -7,18 +7,20 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useItems } from '@/hooks/use-items';
-import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, where, doc, deleteDoc } from 'firebase/firestore';
+import type { Item } from '@/lib/types';
+
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
-  const { items, deleteItem, loading: itemsLoading } = useItems();
+  const { user, isUserLoading } = useAuth();
+  const firestore = useFirestore();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!isUserLoading && !user) {
       toast({
         title: 'Acceso denegado',
         description: 'Debes iniciar sesión para ver tu perfil.',
@@ -26,24 +28,36 @@ export default function ProfilePage() {
       });
       router.push('/login');
     }
-  }, [user, authLoading, router, toast]);
+  }, [user, isUserLoading, router, toast]);
 
-  const handleDeleteItem = (itemId: string) => {
-    deleteItem(itemId);
+  const userItemsQuery = useMemoFirebase(() => {
+    if (!firestore || !user?.email) return null;
+    return query(collection(firestore, 'materials'), where('postedBy', '==', user.email));
+  }, [firestore, user]);
+
+  const reservedItemsQuery = useMemoFirebase(() => {
+    if (!firestore || !user?.email) return null;
+    return query(collection(firestore, 'materials'), where('reservedBy', '==', user.email));
+  }, [firestore, user]);
+
+  const { data: userItems, isLoading: userItemsLoading } = useCollection<Item>(userItemsQuery);
+  const { data: reservedItems, isLoading: reservedItemsLoading } = useCollection<Item>(reservedItemsQuery);
+
+  const handleDeleteItem = async (itemId: string) => {
+    if (!firestore) return;
+    await deleteDoc(doc(firestore, 'materials', itemId));
     toast({
       title: 'Artículo eliminado',
       description: 'Tu publicación ha sido eliminada con éxito.'
     })
   }
 
-  if (authLoading || itemsLoading || !user) {
+  if (isUserLoading || userItemsLoading || reservedItemsLoading || !user) {
     return <div className="container text-center py-20">Cargando perfil...</div>;
   }
-
-  const userItems = items.filter(item => item.postedBy === user.email);
-  const reservedItems = items.filter(item => item.reservedBy === user.email);
-
-  const getInitials = (name: string) => {
+  
+  const getInitials = (name: string | null) => {
+    if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
@@ -51,19 +65,19 @@ export default function ProfilePage() {
     <div className="container mx-auto px-4 md:px-6 py-12 md:py-20">
       <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-12">
         <Avatar className="w-24 h-24 border-4 border-primary">
-          <AvatarImage src={`https://picsum.photos/seed/${user.email}/100/100`} />
-          <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+          <AvatarImage src={user.photoURL || `https://picsum.photos/seed/${user.email}/100/100`} />
+          <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
         </Avatar>
         <div className="text-center md:text-left">
-          <h1 className="text-4xl font-bold font-headline">{user.name}</h1>
-          <p className="text-muted-foreground mt-1">Miembro desde: {new Date(user.memberSince).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          <h1 className="text-4xl font-bold font-headline">{user.displayName}</h1>
+          <p className="text-muted-foreground mt-1">Miembro desde: {user.metadata.creationTime ? new Date(user.metadata.creationTime).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : 'N/A'}</p>
           <div className="flex gap-4 mt-4 justify-center md:justify-start">
              <div className="text-center">
-                <p className="text-2xl font-bold">{userItems.length}</p>
+                <p className="text-2xl font-bold">{userItems?.length || 0}</p>
                 <p className="text-sm text-muted-foreground">Artículos Publicados</p>
              </div>
              <div className="text-center">
-                <p className="text-2xl font-bold">{reservedItems.length}</p>
+                <p className="text-2xl font-bold">{reservedItems?.length || 0}</p>
                 <p className="text-sm text-muted-foreground">Artículos Reservados</p>
              </div>
           </div>
@@ -85,7 +99,7 @@ export default function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {userItems.length > 0 ? (
+              {userItems && userItems.length > 0 ? (
                 userItems.map(item => <ItemCard key={item.id} item={item} showDelete={true} onDelete={handleDeleteItem} />)
               ) : (
                 <p>Aún no has publicado ningún artículo.</p>
@@ -102,7 +116,7 @@ export default function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {reservedItems.length > 0 ? (
+              {reservedItems && reservedItems.length > 0 ? (
                 reservedItems.map(item => <ItemCard key={item.id} item={item} />)
               ) : (
                 <p>Aún no has reservado ningún artículo.</p>

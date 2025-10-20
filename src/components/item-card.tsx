@@ -4,7 +4,6 @@ import type { Item } from '@/lib/types';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -12,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Trash2 } from 'lucide-react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/firebase';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,8 +36,8 @@ export function ItemCard({ item, showDelete = false, onDelete }: ItemCardProps) 
 
   return (
     <Card className="flex flex-col h-full overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-      <CardHeader className="relative">
-        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md">
+      <CardHeader className="relative p-0">
+        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-md">
           <Image
             src={item.imageUrl}
             alt={item.title}
@@ -54,14 +53,14 @@ export function ItemCard({ item, showDelete = false, onDelete }: ItemCardProps) 
            )}
         </div>
       </CardHeader>
-      <CardContent className="flex-grow">
+      <CardContent className="flex-grow p-4">
         <CardTitle className="text-lg leading-tight mb-2">{item.title}</CardTitle>
         <div className="flex flex-wrap gap-2 text-xs">
             <Badge variant="secondary">{item.category}</Badge>
             <Badge variant="outline">{item.condition}</Badge>
         </div>
       </CardContent>
-      <CardFooter className="flex gap-2">
+      <CardFooter className="flex gap-2 p-4 pt-0">
         <Button asChild variant="secondary" className="w-full">
           <Link href={`/items/${item.id}`}>
             Ver Detalles <ArrowRight className="ml-2" />

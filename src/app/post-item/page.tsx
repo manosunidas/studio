@@ -23,10 +23,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useItems } from '@/hooks/use-items';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 
 const formSchema = z.object({
   title: z.string().min(1, 'El título es obligatorio'),
@@ -41,16 +42,17 @@ type FormData = z.infer<typeof formSchema>;
 
 export default function PostItemPage() {
   const router = useRouter();
-  const { addItem } = useItems();
-  const { user, loading: authLoading } = useAuth();
+  const { user, isUserLoading } = useAuth();
+  const firestore = useFirestore();
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { register, handleSubmit, control, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, control, formState: { errors }, reset } = useForm<FormData>({
     resolver: zodResolver(formSchema),
   });
 
    useEffect(() => {
-    if (!authLoading && !user) {
+    if (!isUserLoading && !user) {
       toast({
         title: 'Acceso denegado',
         description: 'Debes iniciar sesión para publicar un artículo.',
@@ -58,33 +60,64 @@ export default function PostItemPage() {
       });
       router.push('/login');
     }
-  }, [user, authLoading, router, toast]);
+  }, [user, isUserLoading, router, toast]);
 
-  const onSubmit = (data: FormData) => {
-    if (!user) return;
+  const onSubmit = async (data: FormData) => {
+    if (!user || !firestore) return;
     
-    const reader = new FileReader();
-    reader.onload = () => {
-      const newItem = {
-        id: Date.now().toString(),
-        ...data,
-        imageUrl: reader.result as string,
-        imageHint: 'custom item',
-        postedBy: user.email,
-        isReserved: false,
-        status: 'Disponible' as const,
+    setIsSubmitting(true);
+
+    try {
+      const file = data.picture[0];
+      const reader = new FileReader();
+      
+      reader.onload = async (e) => {
+        const fileContent = e.target?.result as string;
+        
+        const storage = getStorage();
+        const storageRef = ref(storage, `materials/${Date.now()}_${file.name}`);
+        const snapshot = await uploadString(storageRef, fileContent, 'data_url');
+        const imageUrl = await getDownloadURL(snapshot.ref);
+
+        const materialsCollection = collection(firestore, 'materials');
+        await addDoc(materialsCollection, {
+          title: data.title,
+          description: data.description,
+          category: data.category,
+          condition: data.condition,
+          gradeLevel: data.gradeLevel,
+          imageUrl: imageUrl,
+          imageHint: 'school supplies',
+          postedBy: user.email,
+          postedByName: user.displayName,
+          datePosted: serverTimestamp(),
+          isReserved: false,
+          status: 'Disponible',
+        });
+
+        toast({
+          title: '¡Artículo publicado!',
+          description: 'Tu artículo ahora está visible para la comunidad.',
+        });
+        reset();
+        router.push('/');
       };
-      addItem(newItem);
+
+      reader.readAsDataURL(file);
+
+    } catch (error) {
+      console.error("Error creating item:", error);
       toast({
-        title: '¡Artículo publicado!',
-        description: 'Tu artículo ahora está visible para la comunidad.',
+        title: 'Error al publicar',
+        description: 'Hubo un problema al crear el artículo. Inténtalo de nuevo.',
+        variant: 'destructive',
       });
-      router.push('/');
-    };
-    reader.readAsDataURL(data.picture[0]);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  if(authLoading || !user) {
+  if(isUserLoading || !user) {
     return <div className="container text-center py-20">Cargando...</div>;
   }
 
@@ -102,7 +135,7 @@ export default function PostItemPage() {
             <div className="grid gap-6">
               <div className="grid gap-2">
                 <Label htmlFor="title">Título del Artículo</Label>
-                <Input id="title" placeholder="Ej: Mochila escolar azul" {...register('title')} />
+                <Input id="title" placeholder="Ej: Mochila escolar azul" {...register('title')} disabled={isSubmitting} />
                 {errors.title && <p className="text-sm text-destructive">{errors.title.message}</p>}
               </div>
               <div className="grid gap-2">
@@ -111,6 +144,7 @@ export default function PostItemPage() {
                   id="description"
                   placeholder="Describe el artículo, su estado, y cualquier detalle importante."
                   {...register('description')}
+                  disabled={isSubmitting}
                 />
                  {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
               </div>
@@ -121,7 +155,7 @@ export default function PostItemPage() {
                     name="category"
                     control={control}
                     render={({ field }) => (
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
                         <SelectTrigger id="category">
                           <SelectValue placeholder="Selecciona una categoría" />
                         </SelectTrigger>
@@ -137,11 +171,11 @@ export default function PostItemPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="condition">Condición</Label>
-                  <Controller
+                   <Controller
                     name="condition"
                     control={control}
                     render={({ field }) => (
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
                         <SelectTrigger id="condition">
                           <SelectValue placeholder="Selecciona la condición" />
                         </SelectTrigger>
@@ -161,7 +195,7 @@ export default function PostItemPage() {
                     name="gradeLevel"
                     control={control}
                     render={({ field }) => (
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
                         <SelectTrigger id="grade-level">
                           <SelectValue placeholder="Selecciona el nivel" />
                         </SelectTrigger>
@@ -179,14 +213,16 @@ export default function PostItemPage() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="picture">Foto del Artículo</Label>
-                <Input id="picture" type="file" {...register('picture')} />
+                <Input id="picture" type="file" {...register('picture')} disabled={isSubmitting} accept="image/*" />
                 <p className="text-xs text-muted-foreground">Sube una foto clara del artículo.</p>
                 {errors.picture && <p className="text-sm text-destructive">{errors.picture.message as string}</p>}
               </div>
             </div>
           </CardContent>
           <CardFooter>
-            <Button size="lg" type="submit">Publicar Artículo</Button>
+            <Button size="lg" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Publicando...' : 'Publicar Artículo'}
+            </Button>
           </CardFooter>
         </form>
       </Card>

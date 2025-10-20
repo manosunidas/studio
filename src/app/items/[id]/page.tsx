@@ -1,16 +1,16 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { notFound, useRouter, useParams } from 'next/navigation';
-import { useItems } from '@/hooks/use-items';
+import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Heart, User, MapPin, Tag, ArrowLeft, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,25 +25,21 @@ import {
 
 export default function ItemPage() {
   const params = useParams();
-  const { items, updateItem, deleteItem } = useItems();
-  const { user, loading: authLoading } = useAuth();
-  const [item, setItem] = useState<Item | null>(null);
+  const id = params.id as string;
+  const firestore = useFirestore();
+  const { user, isUserLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  const id = params.id as string;
 
-  useEffect(() => {
-    if (!id || items.length === 0) return;
-    const foundItem = items.find((i) => i.id === id);
-    if (foundItem) {
-      setItem(foundItem);
-    } else {
-      // notFound();
-    }
-  }, [items, id]);
+  const itemRef = useMemoFirebase(() => {
+    if (!firestore || !id) return null;
+    return doc(firestore, 'materials', id);
+  }, [firestore, id]);
 
-  const handleReserve = () => {
-    if (!item) return;
+  const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
+
+  const handleReserve = async () => {
+    if (!item || !itemRef) return;
      if (!user) {
       toast({
         title: 'Inicia sesión para reservar',
@@ -53,29 +49,27 @@ export default function ItemPage() {
       router.push('/login');
       return;
     }
-    const updatedItem = { ...item, isReserved: true, reservedBy: user.email, status: 'Reservado' as const };
-    updateItem(item.id, updatedItem);
-    setItem(updatedItem);
+    const updatedData = { isReserved: true, reservedBy: user.email, status: 'Reservado' as const };
+    await updateDoc(itemRef, updatedData);
     toast({
         title: '¡Artículo reservado!',
         description: 'Has reservado este artículo con éxito.',
     });
   };
   
-  const handleCancelReservation = () => {
-    if (!item) return;
-    const updatedItem = { ...item, isReserved: false, reservedBy: undefined, status: 'Disponible' as const };
-    updateItem(item.id, updatedItem);
-    setItem(updatedItem);
+  const handleCancelReservation = async () => {
+    if (!item || !itemRef) return;
+    const updatedData = { isReserved: false, reservedBy: '', status: 'Disponible' as const };
+    await updateDoc(itemRef, updatedData);
      toast({
         title: 'Reserva cancelada',
         description: 'Has cancelado la reserva de este artículo.',
     });
   }
 
-  const handleRemoveItem = () => {
-    if(!item) return;
-    deleteItem(item.id);
+  const handleRemoveItem = async () => {
+    if(!item || !itemRef) return;
+    await deleteDoc(itemRef);
     toast({
         title: 'Artículo eliminado',
         description: 'El artículo ha sido eliminado de la plataforma.',
@@ -83,7 +77,7 @@ export default function ItemPage() {
     router.push('/profile');
   }
 
-  if (authLoading || !item) {
+  if (isUserLoading || isItemLoading || !item) {
     return <div className="container text-center py-20">Cargando artículo...</div>;
   }
 
@@ -143,7 +137,7 @@ export default function ItemPage() {
                 </div>
             </div>
             <p className="text-lg text-muted-foreground mt-2">
-              Publicado por <span className="font-semibold text-primary">{item.postedBy.split('@')[0]}</span>
+              Publicado por <span className="font-semibold text-primary">{item.postedByName || item.postedBy.split('@')[0]}</span>
             </p>
           </div>
 

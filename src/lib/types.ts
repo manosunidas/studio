@@ -27,5 +27,4 @@ export type User = {
   name: string | null;
   email: string | null;
   photoURL: string | null;
-  memberSince: string; // ISO date string
 }
