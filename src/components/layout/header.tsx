@@ -172,7 +172,7 @@ export function Header() {
         
         {isMounted ? renderDynamicContent() : (
              <div className="md:hidden">
-                 <Button variant="ghost" size="icon">
+                 <Button variant="ghost" size="icon" disabled>
                     <Menu className="h-6 w-6" />
                     <span className="sr-only">Abrir menú</span>
                 </Button>
