@@ -52,7 +52,7 @@ export function DynamicHeaderContent() {
     <Link
       href={href}
       className={cn(
-        'text-sm font-medium transition-colors hover:text-primary',
+        'text-xl font-medium transition-colors hover:text-primary',
         pathname === href ? 'text-primary' : 'text-muted-foreground'
       )}
       onClick={() => setSheetOpen(false)}
@@ -81,8 +81,8 @@ export function DynamicHeaderContent() {
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="icon" className="rounded-full">
-                    <UserCircle className="h-5 w-5" />
+                  <Button variant="secondary" size="icon" className="rounded-full w-12 h-12">
+                    <UserCircle className="h-8 w-8" />
                     <span className="sr-only">Toggle user menu</span>
                   </Button>
                 </DropdownMenuTrigger>
@@ -98,7 +98,7 @@ export function DynamicHeaderContent() {
               </DropdownMenu>
             ) : (
               <Button variant="ghost" asChild>
-                <Link href="/login">Iniciar Sesión (Admin)</Link>
+                <Link href="/login" className="text-xl">Iniciar Sesión (Admin)</Link>
               </Button>
             )}
           </div>
@@ -109,14 +109,14 @@ export function DynamicHeaderContent() {
           <Sheet open={isSheetOpen} onOpenChange={setSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
-                <Menu className="h-6 w-6" />
+                <Menu className="h-10 w-10" />
                 <span className="sr-only">Abrir menú</span>
               </Button>
             </SheetTrigger>
             <SheetContent side="left">
               <div className="flex flex-col h-full">
                 <div className="border-b pb-4">
-                  <span className="font-bold text-lg">Menú</span>
+                  <span className="font-bold text-2xl">Menú</span>
                 </div>
                 <nav className="flex flex-col gap-4 py-6">
                   {navLinks.map((link) => (
@@ -126,15 +126,15 @@ export function DynamicHeaderContent() {
                 <div className="mt-auto border-t pt-6">
                   {user ? (
                     <div className="flex flex-col gap-4">
-                      <Link href="/profile" className="flex items-center gap-2 text-sm font-medium" onClick={() => setSheetOpen(false)}>
-                        <UserCircle /> Mi Perfil
+                      <Link href="/profile" className="flex items-center gap-2 text-xl font-medium" onClick={() => setSheetOpen(false)}>
+                        <UserCircle className="w-8 h-8" /> Mi Perfil
                       </Link>
-                      <Button onClick={() => { handleLogout(); setSheetOpen(false); }}>Cerrar Sesión</Button>
+                      <Button onClick={() => { handleLogout(); setSheetOpen(false); }} size="lg">Cerrar Sesión</Button>
                     </div>
                   ) : (
                     <div className="flex flex-col gap-4">
                       <Button variant="ghost" asChild>
-                        <Link href="/login" onClick={() => setSheetOpen(false)}>Iniciar Sesión (Admin)</Link>
+                        <Link href="/login" className="text-xl" onClick={() => setSheetOpen(false)}>Iniciar Sesión (Admin)</Link>
                       </Button>
                     </div>
                   )}
@@ -150,7 +150,7 @@ export function DynamicHeaderContent() {
   return isMounted ? renderDynamicContent() : (
     <div className="md:hidden">
       <Button variant="ghost" size="icon" disabled>
-        <Menu className="h-6 w-6" />
+        <Menu className="h-10 w-10" />
         <span className="sr-only">Abrir menú</span>
       </Button>
     </div>
