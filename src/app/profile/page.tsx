@@ -335,8 +335,6 @@ export default function ProfilePage() {
 
   const userItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
-    // Admin sees all items, regular user sees only their own items
-    // This was the source of the bug. Regular users should not see this page at all.
     return query(collection(firestore, 'materials'), where('postedBy', '==', user.uid));
   }, [firestore, user?.uid]);
 
@@ -344,20 +342,20 @@ export default function ProfilePage() {
 
   const handleDeleteItem = async (itemId: string) => {
     if (!firestore) return;
-    try {
-      await deleteDoc(doc(firestore, 'materials', itemId));
-      toast({
-        title: 'Artículo eliminado',
-        description: 'Tu publicación ha sido eliminada con éxito.'
-      });
-    } catch (error) {
-      console.error("Error deleting item:", error);
-      toast({
-        title: 'Error al eliminar',
-        description: 'No se pudo eliminar el artículo. Inténtalo de nuevo.',
-        variant: 'destructive',
-      });
-    }
+    const itemRef = doc(firestore, 'materials', itemId);
+    
+    deleteDoc(itemRef).then(() => {
+        toast({
+            title: 'Artículo eliminado',
+            description: 'Tu publicación ha sido eliminada con éxito.'
+        });
+    }).catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: itemRef.path,
+            operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   }
 
   const handleFormSuccess = () => {
@@ -442,6 +440,8 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
 
     
 
