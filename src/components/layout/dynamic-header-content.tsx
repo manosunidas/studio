@@ -60,105 +60,99 @@ export function DynamicHeaderContent() {
       {label}
     </Link>
   );
-  
-  if (!isMounted) {
-     return (
-         <div className="md:hidden">
-             <Button variant="ghost" size="icon" disabled>
-                <Menu className="h-6 w-6" />
-                <span className="sr-only">Abrir menú</span>
-            </Button>
-         </div>
-    );
-  }
 
-  const isAdmin = user?.email === 'jhelenandreat@gmail.com';
-  const navLinks = [
-    { href: '/', label: 'Inicio' },
-    ...(user ? [{ href: '/profile', label: 'Mis Artículos' }] : []),
-    ...(isAdmin ? [{ href: '/admin', label: 'Admin' }] : []),
-  ];
+  const renderDynamicContent = () => {
+    const isAdmin = user?.email === 'jhelenandreat@gmail.com';
+    const navLinks = [
+      { href: '/', label: 'Inicio' },
+      ...(isAdmin ? [{ href: '/profile', label: 'Mi Panel' }] : []),
+    ];
 
-  return (
-    <>
-      {/* Desktop Navigation & Auth */}
-      <div className="hidden md:flex items-center gap-6">
-         <nav className="flex items-center gap-6">
-          {navLinks.map((link) => (
+    return (
+      <>
+        {/* Desktop Navigation & Auth */}
+        <div className="hidden md:flex items-center gap-6">
+          <nav className="flex items-center gap-6">
+            {navLinks.map((link) => (
               <NavLink key={link.href} {...link} />
-          ))}
+            ))}
           </nav>
           <div className="flex items-center gap-4">
-               {user ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="secondary" size="icon" className="rounded-full">
-                        <UserCircle className="h-5 w-5" />
-                        <span className="sr-only">Toggle user menu</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-                        <Link href="/profile">Mi Perfil</Link>
-                      </DropdownMenuItem>
-                      {isAdmin && (
-                        <DropdownMenuItem asChild>
-                          <Link href="/admin">Admin Panel</Link>
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <Button variant="ghost" asChild>
-                    <Link href="/login">Iniciar Sesión</Link>
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" size="icon" className="rounded-full">
+                    <UserCircle className="h-5 w-5" />
+                    <span className="sr-only">Toggle user menu</span>
                   </Button>
-                )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile">Mi Perfil</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button variant="ghost" asChild>
+                <Link href="/login">Iniciar Sesión (Admin)</Link>
+              </Button>
+            )}
           </div>
-      </div>
+        </div>
 
-      {/* Mobile Navigation & Auth */}
-      <div className="md:hidden">
-        <Sheet open={isSheetOpen} onOpenChange={setSheetOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Menu className="h-6 w-6" />
-              <span className="sr-only">Abrir menú</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left">
-            <div className="flex flex-col h-full">
-              <div className="border-b pb-4">
-                <span className="font-bold text-lg">Menú</span>
+        {/* Mobile Navigation & Auth */}
+        <div className="md:hidden">
+          <Sheet open={isSheetOpen} onOpenChange={setSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="h-6 w-6" />
+                <span className="sr-only">Abrir menú</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left">
+              <div className="flex flex-col h-full">
+                <div className="border-b pb-4">
+                  <span className="font-bold text-lg">Menú</span>
+                </div>
+                <nav className="flex flex-col gap-4 py-6">
+                  {navLinks.map((link) => (
+                    <NavLink key={link.href} {...link} />
+                  ))}
+                </nav>
+                <div className="mt-auto border-t pt-6">
+                  {user ? (
+                    <div className="flex flex-col gap-4">
+                      <Link href="/profile" className="flex items-center gap-2 text-sm font-medium" onClick={() => setSheetOpen(false)}>
+                        <UserCircle /> Mi Perfil
+                      </Link>
+                      <Button onClick={() => { handleLogout(); setSheetOpen(false); }}>Cerrar Sesión</Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      <Button variant="ghost" asChild>
+                        <Link href="/login" onClick={() => setSheetOpen(false)}>Iniciar Sesión (Admin)</Link>
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
-              <nav className="flex flex-col gap-4 py-6">
-                {navLinks.map((link) => (
-                  <NavLink key={link.href} {...link} />
-                ))}
-              </nav>
-              <div className="mt-auto border-t pt-6">
-                {user ? (
-                  <div className="flex flex-col gap-4">
-                    <Link href="/profile" className="flex items-center gap-2 text-sm font-medium" onClick={() => setSheetOpen(false)}>
-                      <UserCircle /> Mi Perfil
-                    </Link>
-                    <Button onClick={() => { handleLogout(); setSheetOpen(false); }}>Cerrar Sesión</Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-4">
-                    <Button variant="ghost" asChild>
-                      <Link href="/login" onClick={() => setSheetOpen(false)}>Iniciar Sesión</Link>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
-      </div>
-    </>
+            </SheetContent>
+          </Sheet>
+        </div>
+      </>
+    );
+  };
+  
+  return isMounted ? renderDynamicContent() : (
+    <div className="md:hidden">
+      <Button variant="ghost" size="icon" disabled>
+        <Menu className="h-6 w-6" />
+        <span className="sr-only">Abrir menú</span>
+      </Button>
+    </div>
   );
 }

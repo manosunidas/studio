@@ -8,19 +8,19 @@ import { useEffect } from 'react';
 export default function PostItemPage() {
   const router = useRouter();
   const { user, isUserLoading } = useUser();
-  const isAdmin = user?.email === 'jhelenandreat@gmail.com';
 
   useEffect(() => {
+    // This page is now just a redirector.
+    // If the user is the admin, send them to their profile which is the new admin panel.
+    // If not, send them to the homepage.
     if (!isUserLoading) {
-      if (!user || !isAdmin) {
-        // If not loading, and user is not an admin (or not logged in), redirect to home
-        router.replace('/');
+      if (user && user.email === 'jhelenandreat@gmail.com') {
+        router.replace('/profile');
       } else {
-         // If user is admin, redirect to the admin panel which has the posting functionality
-        router.replace('/admin');
+        router.replace('/');
       }
     }
-  }, [user, isUserLoading, isAdmin, router]);
+  }, [user, isUserLoading, router]);
 
   // Render a loading state while checking user auth
   return <div className="container text-center py-20">Cargando...</div>;
