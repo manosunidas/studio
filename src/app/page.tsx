@@ -11,9 +11,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ItemCard } from '@/components/item-card';
-import { useCollection, useMemoFirebase } from '@/firebase';
+import { useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { ArrowRight, Search } from 'lucide-react';
 import { SuggestedItems } from '@/components/suggested-items';
+import { AssignedItemsCarousel } from '@/components/assigned-items-carousel';
 import { useState } from 'react';
 import type { ItemCategory, ItemCondition, Item, ItemStatus } from '@/lib/types';
 import { useFirestore } from '@/firebase';
@@ -22,6 +23,7 @@ import { collection, query, where } from 'firebase/firestore';
 
 export default function Home() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState<ItemCategory | 'all'>('all');
   const [condition, setCondition] = useState<ItemCondition | 'all'>('all');
@@ -66,6 +68,7 @@ export default function Home() {
         </div>
       </section>
 
+      {!user && <AssignedItemsCarousel />}
       <SuggestedItems />
 
       <section id="catalog" className="w-full py-16 md:py-24">
@@ -97,6 +100,8 @@ export default function Home() {
                   <SelectItem value="Ropa">Ropa</SelectItem>
                   <SelectItem value="Útiles">Útiles escolares</SelectItem>
                   <SelectItem value="Tecnología">Tecnología</SelectItem>
+                  <SelectItem value="Libros">Libros</SelectItem>
+                  <SelectItem value="Uniformes">Uniformes</SelectItem>
                 </SelectContent>
               </Select>
               <Select onValueChange={(value: ItemCondition | 'all') => setCondition(value)} defaultValue="all">
