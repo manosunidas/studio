@@ -25,8 +25,8 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState } from 'react';
-import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
-import { collection, serverTimestamp } from 'firebase/firestore';
+import { useUser, useFirestore } from '@/firebase';
+import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 
 
@@ -75,6 +75,9 @@ export default function AdminPage() {
         reader.onload = async (e) => {
             try {
                 const fileAsDataURL = e.target?.result as string;
+                if (!fileAsDataURL) {
+                    throw new Error("No se pudo leer el archivo de imagen.");
+                }
                 
                 // 1. Upload image to Firebase Storage
                 const storage = getStorage();
@@ -82,9 +85,9 @@ export default function AdminPage() {
                 const snapshot = await uploadString(storageRef, fileAsDataURL, 'data_url');
                 const imageUrl = await getDownloadURL(snapshot.ref);
 
-                // 2. Add item to Firestore using the non-blocking helper
+                // 2. Add item to Firestore
                 const materialsCollection = collection(firestore, 'materials');
-                await addDocumentNonBlocking(materialsCollection, {
+                await addDoc(materialsCollection, {
                     title: data.title,
                     description: data.description,
                     category: data.category,
@@ -105,7 +108,7 @@ export default function AdminPage() {
                 });
                 reset(); // Reset form fields
             } catch (error: any) {
-                 console.error("Error creating item:", error);
+                 console.error("Error al crear el artículo:", error);
                 toast({
                     title: 'Error al publicar',
                     description: error.message || 'Hubo un problema al crear el artículo. Inténtalo de nuevo.',
@@ -117,7 +120,7 @@ export default function AdminPage() {
         };
 
         reader.onerror = (error) => {
-             console.error("Error reading file:", error);
+             console.error("Error al leer el archivo:", error);
              toast({
                 title: 'Error al leer el archivo',
                 description: 'No se pudo procesar la imagen seleccionada.',
@@ -129,7 +132,7 @@ export default function AdminPage() {
         reader.readAsDataURL(file);
 
     } catch (error: any) {
-        console.error("Error preparing submission:", error);
+        console.error("Error al preparar la publicación:", error);
         toast({
             title: 'Error inesperado',
             description: 'Hubo un problema al preparar la publicación. Inténtalo de nuevo.',
