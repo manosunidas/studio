@@ -27,8 +27,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState } from 'react';
 import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
-
 
 const formSchema = z.object({
   title: z.string().min(1, 'El título es obligatorio'),
@@ -36,7 +34,7 @@ const formSchema = z.object({
   category: z.enum(['Ropa', 'Útiles', 'Tecnología'], { required_error: 'Selecciona una categoría' }),
   condition: z.enum(['Nuevo', 'Como nuevo', 'Usado'], { required_error: 'Selecciona la condición' }),
   gradeLevel: z.enum(['Preescolar', 'Primaria', 'Secundaria', 'Todos'], { required_error: 'Selecciona el nivel escolar' }),
-  picture: z.any().refine(files => files?.length > 0, 'La foto es obligatoria.'),
+  imageUrl: z.string().url('Por favor, introduce una URL de imagen válida.').min(1, 'La URL de la imagen es obligatoria.'),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -69,94 +67,46 @@ export default function AdminPage() {
     setIsSubmitting(true);
 
     try {
-        const file = data.picture[0];
-        const reader = new FileReader();
-
-        reader.onload = async (e) => {
-            try {
-                const fileAsDataURL = e.target?.result as string;
-                if (!fileAsDataURL) {
-                    throw new Error("No se pudo leer el archivo de imagen.");
-                }
-                
-                const storage = getStorage();
-                const storageRef = ref(storage, `materials/${Date.now()}_${file.name}`);
-                const snapshot = await uploadString(storageRef, fileAsDataURL, 'data_url');
-                const imageUrl = await getDownloadURL(snapshot.ref);
-
-                const materialsCollection = collection(firestore, 'materials');
-                const newMaterialData = {
-                    title: data.title,
-                    description: data.description,
-                    category: data.category,
-                    condition: data.condition,
-                    gradeLevel: data.gradeLevel,
-                    imageUrl: imageUrl,
-                    imageHint: 'school supplies',
-                    postedBy: user.uid,
-                    postedByName: user.displayName,
-                    datePosted: serverTimestamp(),
-                    isReserved: false,
-                    status: 'Disponible',
-                };
-                
-                addDoc(materialsCollection, newMaterialData)
-                    .then(() => {
-                        toast({
-                            title: '¡Artículo publicado!',
-                            description: 'El artículo ahora está visible para la comunidad.',
-                        });
-                        reset();
-                    })
-                    .catch((error) => {
-                        console.error("Error al crear el artículo:", error);
-                        const permissionError = new FirestorePermissionError({
-                          path: 'materials',
-                          operation: 'create',
-                          requestResourceData: newMaterialData,
-                        });
-                        errorEmitter.emit('permission-error', permissionError);
-                        
-                        toast({
-                            title: 'Error al publicar',
-                            description: 'Hubo un problema al crear el artículo. Revisa los permisos de la base de datos y la consola para más detalles.',
-                            variant: 'destructive',
-                        });
-                    })
-                    .finally(() => {
-                        setIsSubmitting(false);
-                    });
-
-            } catch (error: any) {
-                 console.error("Error durante la subida de la imagen o preparación de datos:", error);
-                toast({
-                    title: 'Error al procesar',
-                    description: error.message || 'Hubo un problema al procesar la publicación.',
-                    variant: 'destructive',
-                });
-                setIsSubmitting(false);
-            }
+        const materialsCollection = collection(firestore, 'materials');
+        const newMaterialData = {
+            title: data.title,
+            description: data.description,
+            category: data.category,
+            condition: data.condition,
+            gradeLevel: data.gradeLevel,
+            imageUrl: data.imageUrl,
+            imageHint: 'school supplies',
+            postedBy: user.uid,
+            postedByName: user.displayName,
+            datePosted: serverTimestamp(),
+            isReserved: false,
+            status: 'Disponible',
         };
+        
+        await addDoc(materialsCollection, newMaterialData);
 
-        reader.onerror = (error) => {
-             console.error("Error al leer el archivo:", error);
-             toast({
-                title: 'Error al leer el archivo',
-                description: 'No se pudo procesar la imagen seleccionada.',
-                variant: 'destructive',
-            });
-             setIsSubmitting(false);
-        }
-
-        reader.readAsDataURL(file);
+        toast({
+            title: '¡Artículo publicado!',
+            description: 'El artículo ahora está visible para la comunidad.',
+        });
+        reset();
 
     } catch (error: any) {
-        console.error("Error inicial en onSubmit:", error);
+        console.error("Error al publicar el artículo:", error);
+        
+        const permissionError = new FirestorePermissionError({
+          path: 'materials',
+          operation: 'create',
+          requestResourceData: data,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        
         toast({
-            title: 'Error inesperado',
-            description: 'Hubo un problema al iniciar la publicación. Inténtalo de nuevo.',
+            title: 'Error al publicar',
+            description: 'Hubo un problema al crear el artículo. Revisa los permisos de la base de datos y la consola para más detalles.',
             variant: 'destructive',
         });
+    } finally {
         setIsSubmitting(false);
     }
   };
@@ -257,10 +207,10 @@ export default function AdminPage() {
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="picture">Foto del Artículo</Label>
-                <Input id="picture" type="file" {...register('picture')} disabled={isSubmitting} accept="image/*" />
-                <p className="text-xs text-muted-foreground">Sube una foto clara del artículo.</p>
-                {errors.picture && <p className="text-sm text-destructive">{errors.picture.message as string}</p>}
+                <Label htmlFor="imageUrl">URL de la Foto del Artículo</Label>
+                <Input id="imageUrl" type="url" {...register('imageUrl')} disabled={isSubmitting} placeholder="https://ejemplo.com/imagen.jpg" />
+                <p className="text-xs text-muted-foreground">Pega la URL de una foto clara del artículo.</p>
+                {errors.imageUrl && <p className="text-sm text-destructive">{errors.imageUrl.message as string}</p>}
               </div>
             </div>
           </CardContent>
