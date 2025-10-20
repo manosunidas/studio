@@ -7,6 +7,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { createRequest } from '@/ai/flows/create-request-flow';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
 import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { doc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 
 import {
   Dialog,
@@ -41,10 +42,11 @@ export default function ItemPage() {
   const params = useParams();
   const id = params.id as string;
   const firestore = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
   const [isRequestDialogOpen, setRequestDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema)
@@ -58,51 +60,39 @@ export default function ItemPage() {
   const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
 
   const handleRequest = async (data: RequestFormData) => {
-    if (!item || !itemRef || !firestore) return;
-
-    const requestsCollectionRef = collection(firestore, 'materials', id, 'requests');
-    const newRequestData = {
-        ...data,
+    if (!id) return;
+    setIsSubmitting(true);
+    try {
+      const result = await createRequest({
         materialId: id,
-        fechaSolicitud: serverTimestamp(),
-        status: 'Pendiente' as const,
-    };
-    
-    runTransaction(firestore, async (transaction) => {
-        const itemDoc = await transaction.get(itemRef);
-        if (!itemDoc.exists()) {
-          throw "El artículo ya no existe.";
-        }
-        const currentSolicitudes = itemDoc.data().solicitudes || 0;
-        
-        // Add new request
-        const newRequestRef = doc(requestsCollectionRef);
-        transaction.set(newRequestRef, newRequestData);
-        
-        // Update request count on material
-        transaction.update(itemRef, { solicitudes: currentSolicitudes + 1 });
-    }).then(() => {
+        ...data,
+      });
+
+      if (result.success) {
         toast({
             title: '¡Solicitud enviada!',
             description: 'Tu solicitud ha sido registrada. El donante será notificado.',
         });
         setRequestDialogOpen(false);
-    }).catch((e: any) => {
-        const permissionError = new FirestorePermissionError({
-            path: `materials/${id}/requests`,
-            operation: 'create',
-            requestResourceData: newRequestData
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (e: any) {
+        toast({
+            variant: "destructive",
+            title: "Error al enviar la solicitud",
+            description: e.message || 'No se pudo completar la acción. Inténtalo de nuevo.',
         });
-        errorEmitter.emit('permission-error', permissionError);
-    });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
   
-  if (isUserLoading || isItemLoading || !item) {
+  if (isItemLoading || !item) {
     return <div className="container text-center py-20">Cargando artículo...</div>;
   }
   
   const isAdmin = user?.email === 'jhelenandreat@gmail.com';
-  const isOwner = user?.uid === item.postedBy;
   const isAvailable = item.status === 'Disponible';
 
 
@@ -156,22 +146,24 @@ export default function ItemPage() {
                             <div className="grid gap-4 py-4">
                               <div className="grid gap-2">
                                 <Label htmlFor="nombreCompleto">Nombre Completo</Label>
-                                <Input id="nombreCompleto" {...register('nombreCompleto')} />
+                                <Input id="nombreCompleto" {...register('nombreCompleto')} disabled={isSubmitting} />
                                 {errors.nombreCompleto && <p className="text-sm text-destructive">{errors.nombreCompleto.message}</p>}
                               </div>
                               <div className="grid gap-2">
                                 <Label htmlFor="direccion">Dirección</Label>
-                                <Input id="direccion" {...register('direccion')} />
+                                <Input id="direccion" {...register('direccion')} disabled={isSubmitting} />
                                  {errors.direccion && <p className="text-sm text-destructive">{errors.direccion.message}</p>}
                               </div>
                               <div className="grid gap-2">
                                 <Label htmlFor="telefono">Teléfono</Label>
-                                <Input id="telefono" {...register('telefono')} />
+                                <Input id="telefono" {...register('telefono')} disabled={isSubmitting} />
                                  {errors.telefono && <p className="text-sm text-destructive">{errors.telefono.message}</p>}
                               </div>
                             </div>
                             <DialogFooter>
-                              <Button type="submit">Confirmar Solicitud</Button>
+                              <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting ? 'Enviando...' : 'Confirmar Solicitud'}
+                              </Button>
                             </DialogFooter>
                           </form>
                         </DialogContent>
