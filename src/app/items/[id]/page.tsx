@@ -113,7 +113,7 @@ export default function ItemPage() {
     });
   };
   
-  if (isItemLoading || !item) {
+  if (isItemLoading || isUserLoading || !item) {
     return <div className="container text-center py-20">Cargando artículo...</div>;
   }
   
