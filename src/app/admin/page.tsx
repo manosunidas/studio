@@ -31,7 +31,7 @@ import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
 const formSchema = z.object({
   title: z.string().min(1, 'El título es obligatorio'),
   description: z.string().min(1, 'La descripción es obligatoria'),
-  category: z.enum(['Ropa', 'Útiles', 'Tecnología'], { required_error: 'Selecciona una categoría' }),
+  category: z.enum(['Ropa', 'Útiles', 'Tecnología', 'Libros', 'Uniformes'], { required_error: 'Selecciona una categoría' }),
   condition: z.enum(['Nuevo', 'Como nuevo', 'Usado'], { required_error: 'Selecciona la condición' }),
   gradeLevel: z.enum(['Preescolar', 'Primaria', 'Secundaria', 'Todos'], { required_error: 'Selecciona el nivel escolar' }),
   imageUrl: z.string().url('Por favor, introduce una URL de imagen válida.').min(1, 'La URL de la imagen es obligatoria.'),
@@ -61,54 +61,49 @@ export default function AdminPage() {
     }
   }, [user, isUserLoading, router, toast]);
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = (data: FormData) => {
     if (!user || !firestore) return;
     
     setIsSubmitting(true);
 
-    try {
-        const materialsCollection = collection(firestore, 'materials');
-        const newMaterialData = {
-            title: data.title,
-            description: data.description,
-            category: data.category,
-            condition: data.condition,
-            gradeLevel: data.gradeLevel,
-            imageUrl: data.imageUrl,
-            imageHint: 'school supplies',
-            postedBy: user.uid,
-            postedByName: user.displayName,
-            datePosted: serverTimestamp(),
-            isReserved: false,
-            status: 'Disponible',
-        };
-        
-        await addDoc(materialsCollection, newMaterialData);
-
+    const materialsCollection = collection(firestore, 'materials');
+    const newMaterialData = {
+        ...data,
+        imageHint: 'school supplies',
+        postedBy: user.uid, // Use UID for consistency with rules
+        postedByName: user.displayName,
+        datePosted: serverTimestamp(),
+        isReserved: false,
+        reservedBy: '',
+        status: 'Disponible',
+    };
+    
+    addDoc(materialsCollection, newMaterialData).then(() => {
         toast({
             title: '¡Artículo publicado!',
             description: 'El artículo ahora está visible para la comunidad.',
         });
         reset();
+    }).catch((serverError) => {
+      // Create the rich, contextual error asynchronously.
+      const permissionError = new FirestorePermissionError({
+        path: materialsCollection.path,
+        operation: 'create',
+        requestResourceData: newMaterialData,
+      });
 
-    } catch (error: any) {
-        console.error("Error al publicar el artículo:", error);
-        
-        const permissionError = new FirestorePermissionError({
-          path: 'materials',
-          operation: 'create',
-          requestResourceData: data,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        
-        toast({
-            title: 'Error al publicar',
-            description: 'Hubo un problema al crear el artículo. Revisa los permisos de la base de datos y la consola para más detalles.',
-            variant: 'destructive',
-        });
-    } finally {
+      // Emit the error with the global error emitter
+      errorEmitter.emit('permission-error', permissionError);
+
+      // Also show a user-facing toast
+      toast({
+          title: 'Error al publicar',
+          description: 'Hubo un problema al crear el artículo. Revisa los permisos de la base de datos y la consola para más detalles.',
+          variant: 'destructive',
+      });
+    }).finally(() => {
         setIsSubmitting(false);
-    }
+    });
   };
 
 
@@ -158,6 +153,8 @@ export default function AdminPage() {
                           <SelectItem value="Ropa">Ropa</SelectItem>
                           <SelectItem value="Útiles">Útiles</SelectItem>
                           <SelectItem value="Tecnología">Tecnología</SelectItem>
+                          <SelectItem value="Libros">Libros</SelectItem>
+                          <SelectItem value="Uniformes">Uniformes</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
