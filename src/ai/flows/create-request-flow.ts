@@ -16,12 +16,9 @@ import { FieldValue } from 'firebase-admin/firestore';
 // This block ensures that initialization happens only once.
 if (admin.apps.length === 0) {
   try {
-    // When deployed to App Hosting, the SDK is automatically initialized.
-    // In other environments, you might need to provide credentials explicitly.
-    // We are explicitly providing the project ID to avoid auto-detection issues.
-    admin.initializeApp({
-      projectId: 'studio-1933739816-d9066'
-    });
+    // When deployed to App Hosting, the SDK is automatically initialized by using application default credentials.
+    // In other environments, you might need to set up GOOGLE_APPLICATION_CREDENTIALS.
+    admin.initializeApp();
   } catch (e: any) {
     console.error("Firebase Admin SDK initialization failed.", e);
     // In a real-world scenario, you might want to throw this error
@@ -48,6 +45,10 @@ export type CreateRequestOutput = z.infer<typeof CreateRequestOutputSchema>;
 export async function createRequest(input: CreateRequestInput): Promise<CreateRequestOutput> {
   try {
     // Get firestore instance inside the function to ensure initialization is complete.
+    // This is critical if the admin app hasn't been initialized at the module level.
+     if (admin.apps.length === 0) {
+        admin.initializeApp();
+    }
     const firestore = admin.firestore();
 
     // Validate input against the Zod schema
