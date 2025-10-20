@@ -72,50 +72,69 @@ export default function AdminPage() {
         const file = data.picture[0];
         const reader = new FileReader();
 
-        // Convert file to data URL
-        const fileAsDataURL = await new Promise<string>((resolve, reject) => {
-            reader.onload = e => resolve(e.target?.result as string);
-            reader.onerror = e => reject(e);
-            reader.readAsDataURL(file);
-        });
+        reader.onload = async (e) => {
+            try {
+                const fileAsDataURL = e.target?.result as string;
+                
+                // 1. Upload image to Firebase Storage
+                const storage = getStorage();
+                const storageRef = ref(storage, `materials/${Date.now()}_${file.name}`);
+                const snapshot = await uploadString(storageRef, fileAsDataURL, 'data_url');
+                const imageUrl = await getDownloadURL(snapshot.ref);
 
-        // 1. Upload image to Firebase Storage
-        const storage = getStorage();
-        const storageRef = ref(storage, `materials/${Date.now()}_${file.name}`);
-        const snapshot = await uploadString(storageRef, fileAsDataURL, 'data_url');
-        const imageUrl = await getDownloadURL(snapshot.ref);
+                // 2. Add item to Firestore using the non-blocking helper
+                const materialsCollection = collection(firestore, 'materials');
+                await addDocumentNonBlocking(materialsCollection, {
+                    title: data.title,
+                    description: data.description,
+                    category: data.category,
+                    condition: data.condition,
+                    gradeLevel: data.gradeLevel,
+                    imageUrl: imageUrl,
+                    imageHint: 'school supplies',
+                    postedBy: user.email,
+                    postedByName: user.displayName,
+                    datePosted: serverTimestamp(),
+                    isReserved: false,
+                    status: 'Disponible',
+                });
 
-        // 2. Add item to Firestore using the non-blocking helper
-        const materialsCollection = collection(firestore, 'materials');
-        addDocumentNonBlocking(materialsCollection, {
-            title: data.title,
-            description: data.description,
-            category: data.category,
-            condition: data.condition,
-            gradeLevel: data.gradeLevel,
-            imageUrl: imageUrl,
-            imageHint: 'school supplies',
-            postedBy: user.email,
-            postedByName: user.displayName,
-            datePosted: serverTimestamp(),
-            isReserved: false,
-            status: 'Disponible',
-        });
+                toast({
+                    title: '¡Artículo publicado!',
+                    description: 'El artículo ahora está visible para la comunidad.',
+                });
+                reset(); // Reset form fields
+            } catch (error: any) {
+                 console.error("Error creating item:", error);
+                toast({
+                    title: 'Error al publicar',
+                    description: error.message || 'Hubo un problema al crear el artículo. Inténtalo de nuevo.',
+                    variant: 'destructive',
+                });
+            } finally {
+                setIsSubmitting(false);
+            }
+        };
 
-        toast({
-            title: '¡Artículo publicado!',
-            description: 'El artículo ahora está visible para la comunidad.',
-        });
-        reset(); // Reset form fields
+        reader.onerror = (error) => {
+             console.error("Error reading file:", error);
+             toast({
+                title: 'Error al leer el archivo',
+                description: 'No se pudo procesar la imagen seleccionada.',
+                variant: 'destructive',
+            });
+             setIsSubmitting(false);
+        }
+        
+        reader.readAsDataURL(file);
 
     } catch (error: any) {
-        console.error("Error creating item:", error);
+        console.error("Error preparing submission:", error);
         toast({
-            title: 'Error al publicar',
-            description: error.message || 'Hubo un problema al crear el artículo. Inténtalo de nuevo.',
+            title: 'Error inesperado',
+            description: 'Hubo un problema al preparar la publicación. Inténtalo de nuevo.',
             variant: 'destructive',
         });
-    } finally {
         setIsSubmitting(false);
     }
   };
