@@ -30,17 +30,10 @@ export type CreateRequestOutput = z.infer<typeof CreateRequestOutputSchema>;
 
 // Helper function to initialize Firebase Admin SDK idempotently
 function initializeFirebaseAdmin() {
-    if (!admin.apps.length) {
-        // When deployed to App Hosting, the SDK is automatically initialized
-        // with the project's configuration.
-        // In other environments (like local dev), you might need to provide credentials
-        // via GOOGLE_APPLICATION_CREDENTIALS environment variable.
-        try {
-            admin.initializeApp();
-        } catch(e) {
-            // This might happen in some environments, but we can often recover.
-            console.log('admin.initializeApp() failed. This can happen in some environments.', e);
-        }
+    if (admin.apps.length === 0) {
+        // When deployed to App Hosting, the SDK is automatically initialized.
+        // For local development, it might need GOOGLE_APPLICATION_CREDENTIALS.
+        admin.initializeApp();
     }
     return admin.firestore();
 }
