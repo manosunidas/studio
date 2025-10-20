@@ -141,11 +141,13 @@ export function Header() {
                         <span>Manos Unidas</span>
                     </Link>
                 </div>
-                <nav className="flex flex-col gap-4 py-6">
-                  {isMounted && navLinks.map((link) => (
-                    <NavLink key={link.href} {...link} />
-                  ))}
-                </nav>
+                {isMounted && (
+                  <nav className="flex flex-col gap-4 py-6">
+                    {navLinks.map((link) => (
+                      <NavLink key={link.href} {...link} />
+                    ))}
+                  </nav>
+                )}
                 <div className="mt-auto border-t pt-6">
                   {isMounted && user ? (
                      <div className="flex flex-col gap-4">
