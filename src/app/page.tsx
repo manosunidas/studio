@@ -27,7 +27,7 @@ export default function Home() {
 
   const itemsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    let q = query(collection(firestore, 'materials'), where('isReserved', '==', false));
+    let q = query(collection(firestore, 'materials'), where('status', '==', 'Disponible'));
     return q;
   }, [firestore]);
 
@@ -50,7 +50,7 @@ export default function Home() {
             Dona y encuentra material escolar
           </h1>
           <p className="max-w-2xl mx-auto text-lg md:text-xl text-muted-foreground mb-8">
-            Conectamos a quienes necesitan con quienes desean ayudar. Publica, busca y reserva útiles, libros y uniformes de forma fácil y segura.
+            Conectamos a quienes necesitan con quienes desean ayudar. Publica, busca y solicita útiles, libros y uniformes de forma fácil y segura.
           </p>
           <div className="flex justify-center">
             <Button asChild size="lg">

@@ -47,9 +47,9 @@ export function ItemCard({ item, showDelete = false, onDelete }: ItemCardProps) 
             className="object-cover"
             data-ai-hint={item.imageHint}
           />
-           {item.isReserved && (
+           {item.status === 'Asignado' && (
             <div className="absolute top-2 left-2">
-              <Badge variant="destructive">Reservado</Badge>
+              <Badge variant="destructive">Asignado</Badge>
             </div>
            )}
         </div>
@@ -92,5 +92,3 @@ export function ItemCard({ item, showDelete = false, onDelete }: ItemCardProps) 
     </Card>
   );
 }
-
-    

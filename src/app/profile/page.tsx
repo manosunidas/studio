@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodResolver } from '@radform/resolvers/zod';
 import { z } from 'zod';
 import { ItemCard } from '@/components/item-card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -30,8 +30,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, where, doc, deleteDoc, serverTimestamp, addDoc } from 'firebase/firestore';
-import type { Item } from '@/lib/types';
+import { collection, query, where, doc, deleteDoc, serverTimestamp, addDoc, updateDoc } from 'firebase/firestore';
+import type { Item, Solicitud } from '@/lib/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,6 +43,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 
 const formSchema = z.object({
@@ -78,9 +79,8 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
         postedBy: user.uid,
         postedByName: user.displayName || user.email,
         datePosted: serverTimestamp(),
-        isReserved: false,
-        reservedBy: '',
         status: 'Disponible' as const,
+        solicitudes: 0,
     };
     
     addDoc(materialsCollection, newMaterialData).then(() => {
@@ -186,7 +186,7 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
                           <SelectItem value="Primaria">Primaria</SelectItem>
                           <SelectItem value="Secundaria">Secundaria</SelectItem>
                           <SelectItem value="Todos">Todos</SelectItem>
-                        </SelectContent>
+                        SelectContent>
                       </Select>
                     )}
                   />
@@ -211,101 +211,124 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
   );
 }
 
-function ReservedItemsDashboard() {
-    const firestore = useFirestore();
-    const { toast } = useToast();
-    const { user } = useUser(); // Hook to get the current user
 
-    const reservedItemsQuery = useMemoFirebase(() => {
+function ItemRequests({ item }: { item: Item }) {
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  
+  const requestsQuery = useMemoFirebase(() => {
+    if (!firestore || !item) return null;
+    return query(collection(firestore, 'materials', item.id, 'requests'));
+  }, [firestore, item.id]);
+
+  const { data: requests, isLoading: requestsLoading } = useCollection<Solicitud>(requestsQuery);
+
+  const assignItem = async (solicitudId: string) => {
+    if (!firestore || !item) return;
+
+    const itemRef = doc(firestore, 'materials', item.id);
+    try {
+      await updateDoc(itemRef, {
+        status: 'Asignado',
+        asignadoA: solicitudId,
+      });
+      toast({
+        title: 'Artículo Asignado',
+        description: `El artículo ha sido asignado a la solicitud ${solicitudId.substring(0,5)}...`,
+      });
+    } catch (e) {
+       toast({
+        title: 'Error',
+        description: 'No se pudo asignar el artículo.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (requestsLoading) return <p>Cargando solicitudes...</p>;
+
+  return (
+    <div className="space-y-4">
+      {requests && requests.length > 0 ? requests.map(request => (
+        <Card key={request.id} className="bg-muted/50">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p><strong>Solicitante:</strong> {request.nombreCompleto}</p>
+              <p className="text-sm text-muted-foreground"><strong>Dirección:</strong> {request.direccion}</p>
+              <p className="text-sm text-muted-foreground"><strong>Teléfono:</strong> {request.telefono}</p>
+            </div>
+             <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm">Asignar Artículo</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Confirmar asignación?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción marcará el artículo como "Asignado" a este solicitante y lo retirará del catálogo público. Esta acción no se puede deshacer.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => assignItem(request.id)}>Confirmar Asignación</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+          </CardContent>
+        </Card>
+      )) : <p className="text-sm text-center text-muted-foreground py-4">Este artículo no tiene solicitudes.</p>}
+    </div>
+  );
+}
+
+function RequestsDashboard() {
+    const firestore = useFirestore();
+    
+    const itemsWithRequestsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
-        return query(collection(firestore, 'materials'), where('isReserved', '==', true));
+        return query(collection(firestore, 'materials'), where('solicitudes', '>', 0), where('status', '==', 'Disponible'));
     }, [firestore]);
 
-    const { data: reservedItems, isLoading, error, refetch } = useCollection<Item>(reservedItemsQuery);
+    const { data: items, isLoading, error } = useCollection<Item>(itemsWithRequestsQuery);
     
-    const markAsDelivered = async (itemId: string) => {
-        // Security check: ensure the user is the admin
-        if (!user || user.email !== 'jhelenandreat@gmail.com' || !firestore) {
-            toast({
-                title: 'Acción no permitida',
-                description: 'Solo el administrador puede realizar esta acción.',
-                variant: 'destructive',
-            });
-            return;
-        }
-
-        const itemRef = doc(firestore, 'materials', itemId);
-        try {
-            await deleteDoc(itemRef);
-            toast({
-                title: '¡Entregado!',
-                description: 'El artículo ha sido marcado como entregado y eliminado de la lista.',
-            });
-            refetch();
-        } catch (e) {
-             toast({
-                title: 'Error',
-                description: 'No se pudo actualizar el artículo. Inténtalo de nuevo.',
-                variant: 'destructive',
-            });
-        }
-    };
-
     if (isLoading) {
-        return <p className="text-center py-8">Cargando artículos reservados...</p>;
+        return <p className="text-center py-8">Cargando artículos con solicitudes...</p>;
     }
     
     if (error) {
-        return <p className="text-center text-destructive py-8">Error al cargar los artículos reservados.</p>
+        return <p className="text-center text-destructive py-8">Error al cargar los artículos.</p>
     }
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Artículos Reservados</CardTitle>
+                <CardTitle>Solicitudes de Artículos</CardTitle>
                 <CardDescription>
-                    Aquí puedes ver los artículos que han sido reservados por la comunidad. Una vez entregado, elimínalo de la lista.
+                    Aquí puedes ver los artículos que han sido solicitados. Revisa los solicitantes y asigna el artículo.
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                {!reservedItems || reservedItems.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">No hay artículos reservados por el momento.</p>
+                {!items || items.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">No hay artículos con solicitudes pendientes.</p>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {reservedItems.map(item => (
-                            <Card key={item.id} className="flex flex-col">
-                                <CardHeader>
-                                    <CardTitle className="text-lg">{item.title}</CardTitle>
-                                    <img src={item.imageUrl} alt={item.title} className="aspect-video object-cover rounded-md mt-2" />
-                                </CardHeader>
-                                <CardContent className="flex-grow text-sm space-y-2">
-                                    <p><strong>Reservado por:</strong> {item.reserverFullName}</p>
-                                    <p><strong>Dirección:</strong> {item.reserverAddress}</p>
-                                    <p><strong>Teléfono:</strong> {item.reserverPhone}</p>
-                                    <p><strong>Email:</strong> {item.reservedBy}</p>
-                                </CardContent>
-                                <CardFooter>
-                                     <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                             <Button className="w-full" variant="default">Marcar como Entregado</Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>¿Confirmar Entrega?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                            Esta acción eliminará permanentemente la publicación. Asegúrate de que el artículo ha sido entregado.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => markAsDelivered(item.id)}>Confirmar</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </CardFooter>
-                            </Card>
-                        ))}
-                    </div>
+                    <Accordion type="single" collapsible className="w-full">
+                      {items.map(item => (
+                         <AccordionItem value={item.id} key={item.id}>
+                            <AccordionTrigger>
+                              <div className="flex items-center gap-4 text-left">
+                                <img src={item.imageUrl} alt={item.title} className="w-16 h-16 object-cover rounded-md" />
+                                <div>
+                                  <p className="font-semibold">{item.title}</p>
+                                  <p className="text-sm text-muted-foreground">{item.solicitudes} solicitud(es)</p>
+                                </div>
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                              <ItemRequests item={item} />
+                            </AccordionContent>
+                         </AccordionItem>
+                      ))}
+                    </Accordion>
                 )}
             </CardContent>
         </Card>
@@ -408,7 +431,7 @@ export default function ProfilePage() {
         <TabsList className="grid w-full grid-cols-3 max-w-lg mx-auto">
           <TabsTrigger value="post-item">Publicar Artículo</TabsTrigger>
           <TabsTrigger value="listings">Mis Publicaciones</TabsTrigger>
-          <TabsTrigger value="reservations">Reservas</TabsTrigger>
+          <TabsTrigger value="requests">Solicitudes</TabsTrigger>
         </TabsList>
         <TabsContent value="post-item" className="mt-6">
           <PostItemForm onFormSubmit={handleFormSuccess} />
@@ -428,21 +451,15 @@ export default function ProfilePage() {
                   {userItems.map(item => <ItemCard key={item.id} item={item} showDelete={true} onDelete={handleDeleteItem} />)}
                 </div>
               ) : (
-                !userItemsLoading && <p className="text-center text-muted-foreground">Aún no has publicado ningún artículo.</p>
+                !userİsLoading && <p className="text-center text-muted-foreground">Aún no has publicado ningún artículo.</p>
               )}
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="reservations" className="mt-6">
-           <ReservedItemsDashboard key={refreshKey} />
+        <TabsContent value="requests" className="mt-6">
+           <RequestsDashboard key={refreshKey} />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
-
-    
-
-    
-
-    

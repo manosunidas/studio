@@ -19,7 +19,7 @@ export function SuggestedItems() {
     if (!firestore) return null;
     return query(
       collection(firestore, 'materials'), 
-      where('isReserved', '==', false), 
+      where('status', '==', 'Disponible'), 
       limit(8)
     );
   }, [firestore]);
