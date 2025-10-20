@@ -75,22 +75,15 @@ export default function ItemPage() {
       status: 'Pendiente' as const,
     };
     
-    // Use a transaction to ensure atomicity
-    runTransaction(firestore, async (transaction) => {
-      // First, add the new request document
-      const newRequestRef = doc(requestsCollectionRef); // Create a new doc ref inside the transaction
-      transaction.set(newRequestRef, newRequestData);
+    addDoc(requestsCollectionRef, newRequestData).then(() => {
+      // Increment the solicitudes count, non-blocking
+      updateDoc(materialDocRef, { solicitudes: increment(1) });
       
-      // Then, update the solicitudes count on the material
-      transaction.update(materialDocRef, {
-          solicitudes: increment(1)
+      toast({
+          title: '¡Solicitud enviada!',
+          description: 'Tu solicitud ha sido registrada. El donante será notificado.',
       });
-    }).then(() => {
-        toast({
-            title: '¡Solicitud enviada!',
-            description: 'Tu solicitud ha sido registrada. El donante será notificado.',
-        });
-        setRequestDialogOpen(false);
+      setRequestDialogOpen(false);
     }).catch((e: any) => {
       // This is where we catch permission errors and create a contextual error.
       const permissionError = new FirestorePermissionError({
@@ -240,3 +233,5 @@ export default function ItemPage() {
     </div>
   );
 }
+
+    
