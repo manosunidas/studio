@@ -288,22 +288,7 @@ function ItemRequests({ item }: { item: Item }) {
   );
 }
 
-function RequestsDashboard() {
-    const firestore = useFirestore();
-    const { user } = useUser();
-    
-    const itemsWithRequestsQuery = useMemoFirebase(() => {
-        if (!firestore || !user?.uid) return null;
-        // Query for items posted by the admin that have requests and are available
-        return query(
-            collection(firestore, 'materials'), 
-            where('postedBy', '==', user.uid),
-            where('solicitudes', '>', 0), 
-            where('status', '==', 'Disponible')
-        );
-    }, [firestore, user?.uid]);
-
-    const { data: items, isLoading, error } = useCollection<Item>(itemsWithRequestsQuery);
+function RequestsDashboard({ allAdminItems, isLoading, error }: { allAdminItems: Item[] | null, isLoading: boolean, error: Error | null }) {
     
     if (isLoading) {
         return <p className="text-center py-8">Cargando artículos con solicitudes...</p>;
@@ -312,6 +297,8 @@ function RequestsDashboard() {
     if (error) {
         return <p className="text-center text-destructive py-8">Error al cargar los artículos. Es posible que no tengas permisos para verlos.</p>
     }
+
+    const itemsWithRequests = (allAdminItems || []).filter(item => item.solicitudes > 0 && item.status === 'Disponible');
 
     return (
         <Card>
@@ -322,11 +309,11 @@ function RequestsDashboard() {
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                {!items || items.length === 0 ? (
+                {itemsWithRequests.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No hay artículos con solicitudes pendientes.</p>
                 ) : (
                     <Accordion type="single" collapsible className="w-full">
-                      {items.map(item => (
+                      {itemsWithRequests.map(item => (
                          <AccordionItem value={item.id} key={item.id}>
                             <AccordionTrigger>
                               <div className="flex items-center gap-4 text-left">
@@ -376,7 +363,7 @@ export default function ProfilePage() {
     return query(collection(firestore, 'materials'), where('postedBy', '==', user.uid));
   }, [firestore, user?.uid, refreshKey]);
 
-  const { data: userItems, isLoading: userItemsLoading } = useCollection<Item>(userItemsQuery);
+  const { data: userItems, isLoading: userItemsLoading, error: userItemsError } = useCollection<Item>(userItemsQuery);
 
   const handleDeleteItem = async (itemId: string) => {
     if (!firestore) return;
@@ -473,11 +460,13 @@ export default function ProfilePage() {
           </Card>
         </TabsContent>
         <TabsContent value="requests" className="mt-6">
-           <RequestsDashboard key={refreshKey} />
+           <RequestsDashboard allAdminItems={userItems} isLoading={userItemsLoading} error={userItemsError} />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
+
+    
 
     
