@@ -75,29 +75,24 @@ export default function ItemPage() {
       status: 'Pendiente' as const,
     };
     
-    try {
-      // Use a transaction to ensure atomicity
-      await runTransaction(firestore, async (transaction) => {
-        // First, add the new request document
-        const newRequestRef = doc(requestsCollectionRef); // Create a new doc ref inside the transaction
-        transaction.set(newRequestRef, newRequestData);
-        
-        // Then, update the solicitudes count on the material
-        transaction.update(materialDocRef, {
-            solicitudes: increment(1)
-        });
-      });
-
-      toast({
-          title: '¡Solicitud enviada!',
-          description: 'Tu solicitud ha sido registrada. El donante será notificado.',
-      });
-      setRequestDialogOpen(false);
+    // Use a transaction to ensure atomicity
+    runTransaction(firestore, async (transaction) => {
+      // First, add the new request document
+      const newRequestRef = doc(requestsCollectionRef); // Create a new doc ref inside the transaction
+      transaction.set(newRequestRef, newRequestData);
       
-    } catch (e: any) {
-      console.error("Error submitting request:", e);
-
-      // Create and emit a contextual error for better debugging.
+      // Then, update the solicitudes count on the material
+      transaction.update(materialDocRef, {
+          solicitudes: increment(1)
+      });
+    }).then(() => {
+        toast({
+            title: '¡Solicitud enviada!',
+            description: 'Tu solicitud ha sido registrada. El donante será notificado.',
+        });
+        setRequestDialogOpen(false);
+    }).catch((e: any) => {
+      // This is where we catch permission errors and create a contextual error.
       const permissionError = new FirestorePermissionError({
           path: `materials/${id}/requests`,
           operation: 'create',
@@ -105,9 +100,9 @@ export default function ItemPage() {
       });
       errorEmitter.emit('permission-error', permissionError);
 
-    } finally {
+    }).finally(() => {
         setIsSubmitting(false);
-    }
+    });
   };
   
   if (isItemLoading || !item) {
@@ -149,7 +144,7 @@ export default function ItemPage() {
                     Volver
                   </Button>
                   
-                   {isAvailable && !isAdmin && (
+                   {isAvailable && (
                       <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
                         <DialogTrigger asChild>
                           <Button size="lg">
