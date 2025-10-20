@@ -438,7 +438,21 @@ function RejectedRequestsDashboard({ allAdminItems, isLoading, error }: { allAdm
     if (isLoading) return <p className="text-center py-8">Cargando artículos...</p>;
     if (error) return <p className="text-center text-destructive py-8">Error al cargar los artículos.</p>;
 
-    const itemsWithPotentiallyRejected = allAdminItems || [];
+    const itemsWithPotentiallyRejected = allAdminItems?.filter(item => (item.solicitudes || 0) > 0) || [];
+
+    if (itemsWithPotentiallyRejected.length === 0) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Solicitudes Rechazadas</CardTitle>
+                    <CardDescription>Aquí puedes ver el historial de solicitudes que han sido rechazadas.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-center text-muted-foreground py-8">No hay artículos con solicitudes que puedan ser rechazadas.</p>
+                </CardContent>
+            </Card>
+        );
+    }
 
     return (
         <Card>
@@ -651,3 +665,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
