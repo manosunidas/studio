@@ -15,7 +15,7 @@ import { Heart, User, MapPin, Tag, ArrowLeft, Mail, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 
 import {
@@ -69,6 +69,7 @@ export default function ItemPage() {
     };
     
     try {
+      // Call the server action
       const result = await createRequest(newRequestData);
 
       if (result.success) {
@@ -78,18 +79,12 @@ export default function ItemPage() {
         });
         setRequestDialogOpen(false);
       } else {
+        // If the server action returns an error, display it.
         throw new Error(result.message);
       }
     } catch (e: any) {
-        // Since we are not using the admin SDK anymore, we emit the error from the client
-        // This gives us better debugging info if permissions fail again.
-        const permissionError = new FirestorePermissionError({
-            path: `materials/${id}/requests`,
-            operation: 'create',
-            requestResourceData: newRequestData
-        });
-        errorEmitter.emit('permission-error', permissionError);
-
+        // This will catch network errors or errors thrown from the server action.
+        console.error("Error submitting request:", e);
         toast({
             variant: "destructive",
             title: "Error al enviar la solicitud",

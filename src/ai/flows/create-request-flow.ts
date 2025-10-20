@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A server action for creating a request for a material.
@@ -8,9 +9,8 @@
  */
 
 import { z } from 'zod';
-import { getFirestore, doc, runTransaction, FieldValue, serverTimestamp, collection, writeBatch } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
-
+import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 const CreateRequestInputSchema = z.object({
   materialId: z.string().describe('The ID of the material being requested.'),
@@ -27,21 +27,35 @@ const CreateRequestOutputSchema = z.object({
 });
 export type CreateRequestOutput = z.infer<typeof CreateRequestOutputSchema>;
 
+
+// Helper function to initialize Firebase Admin SDK
+function initializeFirebaseAdmin() {
+    if (!admin.apps.length) {
+        // When deployed to App Hosting, the SDK is automatically initialized.
+        // In other environments, you might need to provide credentials.
+        try {
+            admin.initializeApp();
+        } catch(e) {
+            console.log('admin.initializeApp() failed. This is expected in local dev.', e);
+        }
+    }
+    return admin.firestore();
+}
+
+
 export async function createRequest(input: CreateRequestInput): Promise<CreateRequestOutput> {
   try {
-    const { firestore } = initializeFirebase();
+    const firestore = initializeFirebaseAdmin();
 
     // Validate input against the Zod schema
     const validatedInput = CreateRequestInputSchema.parse(input);
 
-    const materialRef = doc(firestore, 'materials', validatedInput.materialId);
-    const requestsCollectionRef = collection(materialRef, 'requests');
-    
-    const newRequestRef = doc(requestsCollectionRef); // Create a new doc with a generated ID
-    
-    await runTransaction(firestore, async (transaction) => {
+    const materialRef = firestore.collection('materials').doc(validatedInput.materialId);
+    const newRequestRef = materialRef.collection('requests').doc(); // Auto-generate ID
+
+    await firestore.runTransaction(async (transaction) => {
         const materialDoc = await transaction.get(materialRef);
-        if (!materialDoc.exists()) {
+        if (!materialDoc.exists) {
             throw new Error('El artículo ya no existe.');
         }
 
@@ -50,17 +64,16 @@ export async function createRequest(input: CreateRequestInput): Promise<CreateRe
             nombreCompleto: validatedInput.nombreCompleto,
             direccion: validatedInput.direccion,
             telefono: validatedInput.telefono,
-            fechaSolicitud: serverTimestamp(),
+            fechaSolicitud: FieldValue.serverTimestamp(),
             status: 'Pendiente' as const,
             id: newRequestRef.id,
         };
 
-        transaction.set(newRequestRef, newRequestData);
+        transaction.create(newRequestRef, newRequestData);
         transaction.update(materialRef, { 
-            solicitudes: (materialDoc.data().solicitudes || 0) + 1
+            solicitudes: FieldValue.increment(1)
         });
     });
-
 
     return {
       success: true,
