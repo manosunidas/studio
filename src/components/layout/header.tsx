@@ -69,39 +69,6 @@ export function Header() {
       ...(isAdmin ? [{ href: '/admin', label: 'Admin' }] : []),
     ];
 
-    const AuthButtons = () => (
-      <>
-        {user ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="secondary" size="icon" className="rounded-full">
-                <UserCircle className="h-5 w-5" />
-                <span className="sr-only">Toggle user menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/profile">Mi Perfil</Link>
-              </DropdownMenuItem>
-              {isAdmin && (
-                <DropdownMenuItem asChild>
-                  <Link href="/admin">Admin Panel</Link>
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <Button variant="ghost" asChild>
-            <Link href="/login">Iniciar Sesión</Link>
-          </Button>
-        )}
-      </>
-    );
-
     return (
       <>
         {/* Desktop Navigation & Auth */}
@@ -112,7 +79,34 @@ export function Header() {
             ))}
             </nav>
             <div className="flex items-center gap-4">
-                 <AuthButtons />
+                 {user ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="secondary" size="icon" className="rounded-full">
+                          <UserCircle className="h-5 w-5" />
+                          <span className="sr-only">Toggle user menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem asChild>
+                          <Link href="/profile">Mi Perfil</Link>
+                        </DropdownMenuItem>
+                        {isAdmin && (
+                          <DropdownMenuItem asChild>
+                            <Link href="/admin">Admin Panel</Link>
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <Button variant="ghost" asChild>
+                      <Link href="/login">Iniciar Sesión</Link>
+                    </Button>
+                  )}
             </div>
         </div>
 
