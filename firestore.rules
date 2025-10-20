@@ -1,100 +1,101 @@
 /**
- * @fileoverview Firestore Security Rules for Manos Unidas Digital.
+ * @file Firestore Security Rules for Manos Unidas Digital
  *
- * Core Philosophy:
- * This ruleset prioritizes a flexible data model for prototyping while maintaining strong authorization.
- * Users can read and write to materials and requests as anonymous users, but they need to be authenticated to manage their profiles
- * Data access is based on ownership and roles where applicable.
- *
- * Data Structure:
- * - /users/{userId}: Stores user profiles, accessible only to the authenticated user.
- * - /materials/{materialId}: Stores material listings, publicly readable.
- * - /materials/{materialId}/requests/{requestId}: Stores requests for materials. Anyone can create, but only the material owner can read them.
- *
- * Key Security Decisions:
- * - Public read access for materials to encourage open contribution.
- * - Strict ownership for user profiles and material management.
- * - Denormalization of ownership (postedBy) on Material documents for efficient rule evaluation.
- *
- *  The rules are configured to permit anonymous authentication.
+ * @core_philosophy This ruleset enforces a user-ownership model for user profiles and materials. Users can only read and write their own profile data. Materials are publicly readable, but only the owner can modify or delete them.  Material requests can be created by anyone, but only the material owner can manage (read) those requests.
+ * @data_structure
+ *   - /users/{userId}: Stores user profiles.
+ *   - /materials/{materialId}: Stores material listings with a `postedBy` field indicating the owner.
+ *   - /materials/{materialId}/requests/{requestId}: Stores requests for materials.
+ * @key_security_decisions
+ *   - Users can only manage their own profile.
+ *   - Material listings are publicly readable.
+ *   - Only the owner of a material can modify or delete it.
+ *   - Material requests are private to the material owner.
+ *   - Listing of users is disallowed.
+ * @denormalization_for_authorization
+ *   - Material documents include a `postedBy` field to simplify owner checks, avoiding costly `get()` operations to a user document.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Secure user profiles. Only the authenticated user can manage their own profile.
+     * @description Controls access to user profile documents.
      * @path /users/{userId}
-     * @allow (create) - Authenticated user with matching UID can create their profile.
-     * @allow (get, update, delete) - Authenticated user with matching UID can access their profile.
-     * @deny (create) - User attempts to create a profile with a mismatched UID.
-     * @deny (get, update, delete) - Unauthorized user attempts to access another user's profile.
-     * @principle Enforces user-ownership for profile data.
+     * @allow (create) User with ID 'user123' can create their profile.
+     * @allow (get) User with ID 'user123' can read their profile.
+     * @allow (update) User with ID 'user123' can update their profile.
+     * @allow (delete) User with ID 'user123' can delete their profile.
+     * @deny (create) User with ID 'user123' cannot create a profile with ID 'user456'.
+     * @deny (get) User with ID 'user123' cannot read the profile of user 'user456'.
+     * @deny (update) User with ID 'user123' cannot update the profile of user 'user456'.
+     * @deny (delete) User with ID 'user123' cannot delete the profile of user 'user456'.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get, update, delete: if isSignedIn() && isOwner(userId);
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow get: if isOwner(userId);
       allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isOwner(userId) && resource.data.id == request.resource.data.id;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Secure material listings. Publicly readable, owner-only modification.
+     * @description Controls access to material listing documents.
      * @path /materials/{materialId}
-     * @allow (get, list) - Anyone can read the material listings.
-     * @allow (create) - Authenticated user can create a listing with their UID as the owner.
-     * @allow (update, delete) - Only the owner of the material can modify or delete it.
-     * @deny (create) - User attempts to create a listing with a mismatched owner ID.
-     * @deny (update, delete) - Unauthorized user attempts to modify or delete another user's listing.
-     * @principle Enforces owner-only writes for materials while allowing public reads.
+     * @allow (get) Anyone can read a material listing.
+     * @allow (list) Anyone can list material listings.
+     * @allow (create) User with ID 'user123' can create a material listing with 'postedBy' set to 'user123'.
+     * @allow (update) User with ID 'user123' can update a material listing where 'postedBy' is 'user123'.
+     * @allow (delete) User with ID 'user123' can delete a material listing where 'postedBy' is 'user123'.
+     * @deny (create) User with ID 'user123' cannot create a material listing with 'postedBy' set to 'user456'.
+     * @deny (update) User with ID 'user123' cannot update a material listing where 'postedBy' is 'user456'.
+     * @deny (delete) User with ID 'user123' cannot delete a material listing where 'postedBy' is 'user456'.
+     * @principle Allows public read access to materials but restricts modifications to the owner.
      */
     match /materials/{materialId} {
-
-      function isOwner(postedBy) {
-        return request.auth.uid == postedBy;
-      }
-
-      function isExistingOwner() {
-        return resource.data.postedBy == request.auth.uid;
-      }
-
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.postedBy == request.auth.uid;
-      allow update, delete: if isSignedIn() && isExistingOwner();
+      allow update: if isMaterialOwner(materialId);
+      allow delete: if isExistingMaterialOwner(materialId);
+    }
 
-      /**
-       * @description Secure requests for materials. Anyone can create a request, but only the material owner can read them.
-       * @path /materials/{materialId}/requests/{requestId}
-       * @allow (create) - Any authenticated user can create a request.
-       * @allow (get, list) - Only the owner of the parent material can read the requests.
-       * @deny (get, list) - Unauthorized user attempts to read requests for another user's material.
-       * @principle Enforces owner-only reads for requests, allowing anyone to create.
-       */
-      match /requests/{requestId} {
+    /**
+     * @description Controls access to request documents for a material.
+     * @path /materials/{materialId}/requests/{requestId}
+     * @allow (create) Any signed-in user can create a request for a material.
+     * @allow (get) Only the owner of the material can read a request.
+     * @allow (list) Only the owner of the material can list requests.
+     * @deny (update) Only the owner of the material can update a request.
+     * @deny (delete) Only the owner of the material can delete a request.
+     * @principle Restricts access to material requests to the material owner.
+     */
+    match /materials/{materialId}/requests/{requestId} {
+      allow get, list: if isMaterialOwner(materialId);
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if false;
+    }
 
-        function isMaterialOwner(materialId) {
-          return get(/databases/$(database)/documents/materials/$(materialId)).data.postedBy == request.auth.uid;
-        }
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-        function isSignedIn() {
-          return request.auth != null;
-        }
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
 
-        allow create: if isSignedIn();
-        allow get, list: if isSignedIn() && isMaterialOwner(materialId);
-        allow update, delete: if false;
-      }
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+    }
+
+    function isMaterialOwner(materialId) {
+      return isSignedIn() && get(/databases/$(database)/documents/materials/$(materialId)).data.postedBy == request.auth.uid;
+    }
+
+    function isExistingMaterialOwner(materialId) {
+        return isMaterialOwner(materialId) && resource != null;
     }
   }
 }

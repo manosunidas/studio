@@ -119,6 +119,7 @@ export default function ItemPage() {
   
   const isAdmin = user?.email === 'jhelenandreat@gmail.com';
   const isAvailable = item.status === 'Disponible';
+  const canRequest = isAvailable && !isAdmin;
 
 
   return (
@@ -152,7 +153,7 @@ export default function ItemPage() {
                     Volver
                   </Button>
                   
-                   {isAvailable && !isAdmin && (
+                   {canRequest && (
                       <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
                         <DialogTrigger asChild>
                           <Button size="lg">
