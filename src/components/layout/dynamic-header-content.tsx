@@ -24,7 +24,7 @@ export function DynamicHeaderContent() {
   const pathname = usePathname();
   const router = useRouter();
   const [isSheetOpen, setSheetOpen] = useState(false);
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
 
@@ -74,6 +74,16 @@ export function DynamicHeaderContent() {
       { href: '/', label: 'Inicio', className: "text-lg" },
       ...(isAdmin ? [{ href: '/profile', label: 'Mi Panel', className: "text-lg" }] : []),
     ];
+
+    if (isUserLoading) {
+       return (
+         <div className="flex items-center gap-4">
+             <div className="w-24 h-8 bg-muted rounded-md animate-pulse md:w-32"></div>
+             <div className="w-12 h-12 bg-muted rounded-full animate-pulse hidden md:block"></div>
+             <div className="w-8 h-8 bg-muted rounded-md animate-pulse md:hidden"></div>
+         </div>
+       )
+    }
 
     return (
       <>
@@ -170,11 +180,15 @@ export function DynamicHeaderContent() {
     );
   };
   
-  return isMounted ? renderDynamicContent() : (
-    <div className="flex items-center gap-4">
-        <div className="w-24 h-8 bg-muted rounded-md animate-pulse md:w-32"></div>
-        <div className="w-12 h-12 bg-muted rounded-full animate-pulse hidden md:block"></div>
-        <div className="w-8 h-8 bg-muted rounded-md animate-pulse md:hidden"></div>
-    </div>
-  );
+  if (!isMounted) {
+    return (
+        <div className="flex items-center gap-4">
+            <div className="w-24 h-8 bg-muted rounded-md animate-pulse md:w-32"></div>
+            <div className="w-12 h-12 bg-muted rounded-full animate-pulse hidden md:block"></div>
+            <div className="w-8 h-8 bg-muted rounded-md animate-pulse md:hidden"></div>
+        </div>
+    );
+  }
+
+  return renderDynamicContent();
 }
