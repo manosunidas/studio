@@ -1,132 +1,103 @@
-/**
- * @file Firebase Security Rules for Manos Unidas Digital
- * @version 2
- *
- * @Core Philosophy:
- * This ruleset enforces a user-ownership model for user profiles and material listings.
- * Materials are publicly readable, but only the owner can modify them.
- * Transactions are restricted to involved users (donor/claimer).
- * Suggestions are visible only to the user for whom they are made.
- *
- * @Data Structure:
- * - /users/{userId}: Stores user profiles.
- * - /materials/{materialId}: Stores material listings.
- * - /transactions/{transactionId}: Stores transaction records.
- * - /suggestions/{suggestionId}: Stores AI-powered material suggestions.
- *
- * @Key Security Decisions:
- * - Public `list` access for `/materials`.
- * - Strict ownership enforced for `/users/{userId}`.
- * - Transactions limited to donor/claimer access.
- * - Suggestions are visible only to the user for whom they are made.
- *
- * @Denormalization for Authorization:
- * - Materials: `postedBy` field stores the user ID of the material's owner.
- * - Transactions: `donorId` and `claimerId` fields store the user IDs of the involved parties.
- * - Suggestions: `userId` field stores the user ID of the user to whom the suggestion is addressed.
- *
- * @Structural Segregation:
- * - User profiles are stored separately from public material listings.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Grants access to user documents based on ownership.
+     * @description Rules for the /users/{userId} collection.
      * @path /users/{userId}
-     * @allow (create) - Authenticated user with matching userId can create their profile.
-     * @allow (get, list, update, delete) - Authenticated user can only access their own document.
-     * @deny (create) - Unauthenticated user attempts to create a user profile.
-     * @deny (update, delete) - Authenticated user attempts to modify another user's profile.
-     * @principle Enforces document ownership for all operations.
+     * @allow (create) - User with ID 'user123' can create their own profile if authenticated as 'user123'.
+     * @allow (get, update, delete) - User with ID 'user123' can read/write their profile if authenticated as 'user123'.
+     * @deny (create, get, update, delete) - User with ID 'user456' cannot access the profile of 'user123'.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
+        return request.auth.uid == userId;
       }
 
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false; // No listing of user documents.
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
 
     /**
-     * @description Grants public read access to material listings, but restricts write access to the owner.
+     * @description Rules for the /materials/{materialId} collection.
      * @path /materials/{materialId}
-     * @allow (get, list) - Anyone can read material listings.
-     * @allow (create) - Authenticated user can create a material listing, and postedBy is set to their uid.
-     * @allow (update, delete) - Authenticated user can only modify/delete their own material listings.
-     * @deny (create) - Unauthenticated user attempts to create a material listing.
-     * @deny (update, delete) - Authenticated user attempts to modify another user's material listing.
-     * @principle Allows public read access while enforcing ownership for write access.
+     * @allow (get, list) - Any user, authenticated or not, can read material listings.
+     * @allow (create) - User with ID 'user123' can create a material listing with postedBy: 'user123'.
+     * @allow (update, delete) - User with ID 'user123' can modify/delete their material listing if authenticated as 'user123'.
+     * @deny (create, update, delete) - User with ID 'user456' cannot modify/delete material listing of 'user123'.
+     * @principle Allows public read access but enforces ownership for writes.
      */
     match /materials/{materialId} {
-      function isOwner(postedBy) {
-        return request.auth != null && request.auth.uid == postedBy;
+      function isSignedIn() {
+        return request.auth != null;
       }
 
-      function isExistingOwner(postedBy) {
-        return isOwner(postedBy) && resource != null;
+      function isOwner() {
+        return request.auth.uid == resource.data.postedBy;
       }
 
-      allow get: if true;
-      allow list: if true;
-      allow create: if request.auth != null && request.resource.data.postedBy == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.postedBy);
-      allow delete: if isExistingOwner(resource.data.postedBy);
+       allow get: if true;
+       allow list: if true;
+       allow create: if isSignedIn() && request.resource.data.postedBy == request.auth.uid;
+       allow update: if isSignedIn() && isOwner();
+       allow delete: if isSignedIn() && isOwner();
     }
 
     /**
-     * @description Restricts access to transaction records to only the involved users (donor or claimer).
+     * @description Rules for the /transactions/{transactionId} collection.
      * @path /transactions/{transactionId}
-     * @allow (get, list) - Authenticated user can only read transactions where they are the donor or claimer.
-     * @allow (create) - Authenticated user can create a transaction.
-     * @allow (update, delete) - No one can update or delete transactions.
-     * @deny (get, list) - Authenticated user attempts to read a transaction where they are not involved.
-     * @deny (create) - Unauthenticated user attempts to create a transaction.
-     * @deny (update, delete) - Any user attempts to modify or delete a transaction.
-     * @principle Restricts transaction visibility and modification to authorized users only.
+     * @allow (get) - Donor or claimer can read the transaction.
+     * @allow (create) - Any authenticated user can create
+     * @deny (list) - No listing of transactions allowed without being involved as donor or claimer.
+     * @deny (update, delete) - Only the donor or claimer can modify/delete the transaction.
+     * @principle Restricts access to transactions to involved users.
      */
     match /transactions/{transactionId} {
-      function isParticipant(donorId, claimerId) {
-        return request.auth != null && (request.auth.uid == donorId || request.auth.uid == claimerId);
+      function isSignedIn() {
+        return request.auth != null;
       }
 
-      allow get: if isParticipant(resource.data.donorId, resource.data.claimerId);
-      allow list: if request.auth != null && (resource.data.donorId == request.auth.uid || resource.data.claimerId == request.auth.uid);
-      allow create: if request.auth != null;
-      allow update: if false;
-      allow delete: if false;
+      function isInvolved() {
+        return request.auth.uid == resource.data.donorId || request.auth.uid == resource.data.claimerId;
+      }
+
+       allow get: if isSignedIn() && isInvolved();
+       allow list: if false;
+       allow create: if isSignedIn();
+       allow update: if isSignedIn() && isInvolved();
+       allow delete: if isSignedIn() && isInvolved();
     }
 
     /**
-     * @description Restricts access to suggestions to the user for whom the suggestion was made.
+     * @description Rules for the /suggestions/{suggestionId} collection.
      * @path /suggestions/{suggestionId}
-     * @allow (get, list) - Authenticated user can only read suggestions made for them.
-     * @allow (create) - Authenticated user can create a suggestion.
-     * @allow (update, delete) - No one can update or delete suggestions.
-     * @deny (get, list) - Authenticated user attempts to read a suggestion made for another user.
-     * @deny (create) - Unauthenticated user attempts to create a suggestion.
-     * @deny (update, delete) - Any user attempts to modify or delete a suggestion.
-     * @principle Restricts suggestion visibility and modification to authorized users only.
+     * @allow (get) - Only the user for whom the suggestion is made can read it.
+     * @deny (list) - No listing of suggestions.
+     * @deny (create, update, delete) - Only the system can create, modify, or delete suggestions.
+     * @principle Restricts access to suggestions to the intended user.
      */
     match /suggestions/{suggestionId} {
-      function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
+      function isSignedIn() {
+        return request.auth != null;
       }
 
-      allow get: if isOwner(resource.data.userId);
-      allow list: if isOwner(resource.data.userId);
-      allow create: if request.auth != null;
-      allow update: if false;
-      allow delete: if false;
+      function isOwner() {
+        return request.auth.uid == resource.data.userId;
+      }
+
+       allow get: if isSignedIn() && isOwner();
+       allow list: if false;
+       allow create: if false;
+       allow update: if false;
+       allow delete: if false;
     }
   }
 }
