@@ -52,6 +52,7 @@ export default function ItemPage() {
   });
 
   useEffect(() => {
+    // For admins, pre-fill their name. For anonymous users, they will type it.
     if (user && !user.isAnonymous) {
       setValue('nombreCompleto', user.displayName || '');
     }
@@ -98,7 +99,7 @@ export default function ItemPage() {
           description: 'Tu solicitud ha sido registrada. El donante será notificado.',
       });
       setRequestDialogOpen(false);
-    }).catch((e: any) => {
+    }).catch((serverError: any) => {
       // This is where we catch permission errors and create a contextual error.
       const permissionError = new FirestorePermissionError({
           path: requestsCollectionRef.path,
