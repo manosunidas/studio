@@ -70,7 +70,7 @@ export function Header() {
     ];
 
     const AuthButtons = () => (
-      <div className="flex items-center gap-2">
+      <>
         {user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -99,19 +99,21 @@ export function Header() {
             <Link href="/login">Iniciar Sesión</Link>
           </Button>
         )}
-      </div>
+      </>
     );
 
     return (
       <>
         {/* Desktop Navigation & Auth */}
-        <nav className="hidden md:flex items-center gap-6">
-          {navLinks.map((link) => (
-            <NavLink key={link.href} {...link} />
-          ))}
-        </nav>
-        <div className="hidden md:flex items-center gap-4">
-          <AuthButtons />
+        <div className="hidden md:flex items-center gap-6">
+           <nav className="flex items-center gap-6">
+            {navLinks.map((link) => (
+                <NavLink key={link.href} {...link} />
+            ))}
+            </nav>
+            <div className="flex items-center gap-4">
+                 <AuthButtons />
+            </div>
         </div>
 
         {/* Mobile Navigation & Auth */}
@@ -159,24 +161,16 @@ export function Header() {
       </>
     );
   };
-
+  
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2 font-bold text-lg">
+        <Link href="/" className="flex items-center gap-2 font-bold text-lg">
             <HandHeart className="h-6 w-6 text-primary" />
             <span className="hidden sm:inline">Manos Unidas</span>
-          </Link>
-          {isMounted && (
-            <div className="hidden md:flex">
-              {renderDynamicContent()}
-            </div>
-          )}
-        </div>
-         {isMounted ? (
-            <div className="flex items-center">{renderDynamicContent()}</div>
-        ) : (
+        </Link>
+        
+        {isMounted ? renderDynamicContent() : (
              <div className="md:hidden">
                  <Button variant="ghost" size="icon">
                     <Menu className="h-6 w-6" />
