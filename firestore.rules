@@ -1,101 +1,83 @@
-/**
- * @file Firestore Security Rules for Manos Unidas Digital
- *
- * @core_philosophy This ruleset enforces a user-ownership model for user profiles and materials. Users can only read and write their own profile data. Materials are publicly readable, but only the owner can modify or delete them.  Material requests can be created by anyone, but only the material owner can manage (read) those requests.
- * @data_structure
- *   - /users/{userId}: Stores user profiles.
- *   - /materials/{materialId}: Stores material listings with a `postedBy` field indicating the owner.
- *   - /materials/{materialId}/requests/{requestId}: Stores requests for materials.
- * @key_security_decisions
- *   - Users can only manage their own profile.
- *   - Material listings are publicly readable.
- *   - Only the owner of a material can modify or delete it.
- *   - Material requests are private to the material owner.
- *   - Listing of users is disallowed.
- * @denormalization_for_authorization
- *   - Material documents include a `postedBy` field to simplify owner checks, avoiding costly `get()` operations to a user document.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile documents.
+     * @description Secure user profiles. Only the authenticated user can read/write their own profile.
      * @path /users/{userId}
-     * @allow (create) User with ID 'user123' can create their profile.
-     * @allow (get) User with ID 'user123' can read their profile.
-     * @allow (update) User with ID 'user123' can update their profile.
-     * @allow (delete) User with ID 'user123' can delete their profile.
-     * @deny (create) User with ID 'user123' cannot create a profile with ID 'user456'.
-     * @deny (get) User with ID 'user123' cannot read the profile of user 'user456'.
-     * @deny (update) User with ID 'user123' cannot update the profile of user 'user456'.
-     * @deny (delete) User with ID 'user123' cannot delete the profile of user 'user456'.
-     * @principle Enforces document ownership for user profiles.
+     * @allow (create, update, get, delete, list) if the request is made by the user with matching userId
+     * @deny (create, update, get, delete, list) if the request is made by a different user or an unauthenticated user.
+     * @principle Enforces document ownership for all operations on user profiles.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isSignedIn() && isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isOwner(userId) && resource.data.id == request.resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to material listing documents.
+     * @description Secure material listings. Anyone can read a material, but only the owner can modify or delete it.
      * @path /materials/{materialId}
-     * @allow (get) Anyone can read a material listing.
-     * @allow (list) Anyone can list material listings.
-     * @allow (create) User with ID 'user123' can create a material listing with 'postedBy' set to 'user123'.
-     * @allow (update) User with ID 'user123' can update a material listing where 'postedBy' is 'user123'.
-     * @allow (delete) User with ID 'user123' can delete a material listing where 'postedBy' is 'user123'.
-     * @deny (create) User with ID 'user123' cannot create a material listing with 'postedBy' set to 'user456'.
-     * @deny (update) User with ID 'user123' cannot update a material listing where 'postedBy' is 'user456'.
-     * @deny (delete) User with ID 'user123' cannot delete a material listing where 'postedBy' is 'user456'.
-     * @principle Allows public read access to materials but restricts modifications to the owner.
+     * @allow (get, list) if true
+     * @allow (create) if the user is authenticated and the postedBy field matches the user's ID.
+     * @allow (update, delete) if the user is authenticated and is the owner of the material.
+     * @deny (create, update, delete) if the user is not authenticated or is not the owner of the material.
+     * @principle Allows public reads but enforces ownership for writes.
      */
     match /materials/{materialId} {
-      allow get, list: if true;
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isOwner(postedBy) {
+        return request.auth.uid == postedBy;
+      }
+
+      function isExistingOwner() {
+        return isSignedIn() && resource.data.postedBy == request.auth.uid;
+      }
+
+      allow get: if true;
+      allow list: if true;
       allow create: if isSignedIn() && request.resource.data.postedBy == request.auth.uid;
-      allow update: if isMaterialOwner(materialId);
-      allow delete: if isExistingMaterialOwner(materialId);
-    }
+      allow update: if isSignedIn() && isExistingOwner();
+      allow delete: if isSignedIn() && isExistingOwner();
 
-    /**
-     * @description Controls access to request documents for a material.
-     * @path /materials/{materialId}/requests/{requestId}
-     * @allow (create) Any signed-in user can create a request for a material.
-     * @allow (get) Only the owner of the material can read a request.
-     * @allow (list) Only the owner of the material can list requests.
-     * @deny (update) Only the owner of the material can update a request.
-     * @deny (delete) Only the owner of the material can delete a request.
-     * @principle Restricts access to material requests to the material owner.
-     */
-    match /materials/{materialId}/requests/{requestId} {
-      allow get, list: if isMaterialOwner(materialId);
-      allow create: if isSignedIn();
-      allow update: if false;
-      allow delete: if false;
-    }
+      /**
+       * @description Secure requests for a material. Anyone can create a request, but only the material owner can read them.
+       * @path /materials/{materialId}/requests/{requestId}
+       * @allow (create) if true
+       * @allow (get, list) if the user is authenticated and is the owner of the parent material.
+       * @deny (get, list, create, update, delete) if the user is not authenticated or is not the owner of the parent material.
+       * @principle Restricts read access to the material owner.
+       */
+      match /requests/{requestId} {
+        function isSignedIn() {
+          return request.auth != null;
+        }
 
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
+        function isMaterialOwner(materialId) {
+          return get(/databases/$(database)/documents/materials/$(materialId)).data.postedBy == request.auth.uid;
+        }
 
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
-
-    function isMaterialOwner(materialId) {
-      return isSignedIn() && get(/databases/$(database)/documents/materials/$(materialId)).data.postedBy == request.auth.uid;
-    }
-
-    function isExistingMaterialOwner(materialId) {
-        return isMaterialOwner(materialId) && resource != null;
+        allow get, list: if isSignedIn() && isMaterialOwner(materialId);
+        allow create: if true;
+        allow update, delete: if false;
+      }
     }
   }
 }

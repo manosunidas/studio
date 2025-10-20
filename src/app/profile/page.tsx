@@ -698,21 +698,10 @@ export default function ProfilePage() {
     handleAction();
   };
 
-  if (isUserLoading || !user || user.isAnonymous) {
+  if (isUserLoading || !user || !isAdmin) {
     return <div className="container text-center py-20">Cargando...</div>;
   }
   
-  if(!isAdmin) {
-    // This case is handled by the useEffect, but as a fallback
-    return (
-        <div className="container text-center py-20">
-            <h1 className="text-2xl font-bold">Acceso Denegado</h1>
-            <p>Esta página es solo para administradores.</p>
-            <Button onClick={() => router.push('/')} className="mt-4">Volver al Inicio</Button>
-        </div>
-    )
-  }
-
   const getInitials = (name: string | null | undefined) => {
     if (!name) return 'A';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();

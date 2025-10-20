@@ -17,19 +17,19 @@ import { useUser } from '@/firebase';
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const auth = getAuth();
 
   useEffect(() => {
     // Redirect admin to profile if they land here already logged in
-    if (user && !user.isAnonymous) {
+    if (!isUserLoading && user && !user.isAnonymous) {
       toast({
         title: 'Ya has iniciado sesión',
         description: 'Redirigiendo a tu perfil.',
       });
       router.replace('/profile');
     }
-  }, [user, router, toast]);
+  }, [user, isUserLoading, router, toast]);
 
 
   const handleGoogleLogin = async () => {
@@ -41,7 +41,6 @@ export default function LoginPage() {
         description: '¡Bienvenido de nuevo, administrador!',
       });
       router.push('/profile');
-      // The useEffect in the provider will handle the redirect
     } catch (error: any) {
       // Don't show an error toast if the user simply closes the popup.
       if (error.code === 'auth/popup-closed-by-user') {

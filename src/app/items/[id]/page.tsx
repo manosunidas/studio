@@ -41,7 +41,7 @@ export default function ItemPage() {
   const params = useParams();
   const id = params.id as string;
   const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
   const [isRequestDialogOpen, setRequestDialogOpen] = useState(false);
@@ -156,9 +156,9 @@ export default function ItemPage() {
                    {canRequest && (
                       <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
                         <DialogTrigger asChild>
-                          <Button size="lg">
+                          <Button size="lg" disabled={isUserLoading}>
                             <Heart className="mr-2 h-5 w-5" />
-                            Solicitar Artículo
+                            {isUserLoading ? 'Verificando...' : 'Solicitar Artículo'}
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-[425px]">
