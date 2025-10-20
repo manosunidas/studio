@@ -214,6 +214,7 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
 function ReservedItemsDashboard() {
     const firestore = useFirestore();
     const { toast } = useToast();
+    const { user } = useUser(); // Hook to get the current user
 
     const reservedItemsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -223,7 +224,16 @@ function ReservedItemsDashboard() {
     const { data: reservedItems, isLoading, error, refetch } = useCollection<Item>(reservedItemsQuery);
     
     const markAsDelivered = async (itemId: string) => {
-        if (!firestore) return;
+        // Security check: ensure the user is the admin
+        if (!user || user.email !== 'jhelenandreat@gmail.com' || !firestore) {
+            toast({
+                title: 'Acción no permitida',
+                description: 'Solo el administrador puede realizar esta acción.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         const itemRef = doc(firestore, 'materials', itemId);
         try {
             await deleteDoc(itemRef);
