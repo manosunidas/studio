@@ -221,31 +221,38 @@ function ItemRequests({ item }: { item: Item }) {
     return query(collection(firestore, 'materials', item.id, 'requests'));
   }, [firestore, item.id]);
 
-  const { data: requests, isLoading: requestsLoading } = useCollection<Solicitud>(requestsQuery);
+  const { data: requests, isLoading: requestsLoading, error } = useCollection<Solicitud>(requestsQuery);
 
   const assignItem = async (solicitudId: string) => {
     if (!firestore || !item) return;
 
     const itemRef = doc(firestore, 'materials', item.id);
-    try {
-      await updateDoc(itemRef, {
-        status: 'Asignado',
-        asignadoA: solicitudId,
-      });
-      toast({
-        title: 'Artículo Asignado',
-        description: `El artículo ha sido asignado a la solicitud ${solicitudId.substring(0,5)}...`,
-      });
-    } catch (e) {
-       toast({
-        title: 'Error',
-        description: 'No se pudo asignar el artículo.',
-        variant: 'destructive',
-      });
-    }
+    const updateData = {
+      status: 'Asignado' as const,
+      asignadoA: solicitudId,
+    };
+    
+    updateDoc(itemRef, updateData).then(() => {
+        toast({
+          title: 'Artículo Asignado',
+          description: `El artículo ha sido asignado a la solicitud ${solicitudId.substring(0,5)}...`,
+        });
+    }).catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: itemRef.path,
+            operation: 'update',
+            requestResourceData: updateData
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
   if (requestsLoading) return <p>Cargando solicitudes...</p>;
+
+  if (error) {
+    // This can happen if the admin doesn't have permission to read the subcollection
+    return <p className="text-sm text-center text-destructive py-4">Error al cargar las solicitudes. Verifica las reglas de seguridad.</p>
+  }
 
   return (
     <div className="space-y-4">
@@ -283,11 +290,18 @@ function ItemRequests({ item }: { item: Item }) {
 
 function RequestsDashboard() {
     const firestore = useFirestore();
+    const { user } = useUser();
     
     const itemsWithRequestsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'materials'), where('solicitudes', '>', 0), where('status', '==', 'Disponible'));
-    }, [firestore]);
+        if (!firestore || !user?.uid) return null;
+        // Query for items posted by the admin that have requests and are available
+        return query(
+            collection(firestore, 'materials'), 
+            where('postedBy', '==', user.uid),
+            where('solicitudes', '>', 0), 
+            where('status', '==', 'Disponible')
+        );
+    }, [firestore, user?.uid]);
 
     const { data: items, isLoading, error } = useCollection<Item>(itemsWithRequestsQuery);
     
@@ -296,7 +310,7 @@ function RequestsDashboard() {
     }
     
     if (error) {
-        return <p className="text-center text-destructive py-8">Error al cargar los artículos.</p>
+        return <p className="text-center text-destructive py-8">Error al cargar los artículos. Es posible que no tengas permisos para verlos.</p>
     }
 
     return (
@@ -358,9 +372,8 @@ export default function ProfilePage() {
 
   const userItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
-    // As an admin, we want to see all items, not just the ones posted by the admin.
-    // So we remove the where clause for 'postedBy'.
-    return query(collection(firestore, 'materials'));
+    // Query for items posted by the currently logged-in user (admin).
+    return query(collection(firestore, 'materials'), where('postedBy', '==', user.uid));
   }, [firestore, user?.uid, refreshKey]);
 
   const { data: userItems, isLoading: userItemsLoading } = useCollection<Item>(userItemsQuery);
@@ -466,3 +479,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
