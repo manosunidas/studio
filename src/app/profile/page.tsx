@@ -335,12 +335,10 @@ export default function ProfilePage() {
 
   const userItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
-    // As admin, we fetch all items, not just the ones posted by the admin
-    if (isAdmin) {
-      return query(collection(firestore, 'materials'));
-    }
+    // Admin sees all items, regular user sees only their own items
+    // This was the source of the bug. Regular users should not see this page at all.
     return query(collection(firestore, 'materials'), where('postedBy', '==', user.uid));
-  }, [firestore, user?.uid, isAdmin]);
+  }, [firestore, user?.uid]);
 
   const { data: userItems, isLoading: userItemsLoading } = useCollection<Item>(userItemsQuery);
 
