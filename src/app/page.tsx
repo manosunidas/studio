@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -14,7 +15,7 @@ import { useCollection, useMemoFirebase } from '@/firebase';
 import { ArrowRight, Search } from 'lucide-react';
 import { SuggestedItems } from '@/components/suggested-items';
 import { useState } from 'react';
-import type { ItemCategory, ItemCondition, Item } from '@/lib/types';
+import type { ItemCategory, ItemCondition, Item, ItemStatus } from '@/lib/types';
 import { useFirestore } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 
@@ -24,10 +25,12 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState<ItemCategory | 'all'>('all');
   const [condition, setCondition] = useState<ItemCondition | 'all'>('all');
+  const [status, setStatus] = useState<ItemStatus | 'all'>('Disponible');
 
   const itemsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    let q = query(collection(firestore, 'materials'), where('status', '==', 'Disponible'));
+    // Fetch all items, filtering will happen client-side
+    let q = query(collection(firestore, 'materials'));
     return q;
   }, [firestore]);
 
@@ -38,8 +41,9 @@ export default function Home() {
                           item.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = category === 'all' || item.category === category;
     const matchesCondition = condition === 'all' || item.condition === condition;
+    const matchesStatus = status === 'all' || item.status === status;
     
-    return matchesSearch && matchesCategory && matchesCondition;
+    return matchesSearch && matchesCategory && matchesCondition && matchesStatus;
   });
 
   return (
@@ -104,6 +108,16 @@ export default function Home() {
                   <SelectItem value="Nuevo">Nuevo</SelectItem>
                   <SelectItem value="Como nuevo">Como nuevo</SelectItem>
                   <SelectItem value="Usado">Usado</SelectItem>
+                </SelectContent>
+              </Select>
+               <Select onValueChange={(value: ItemStatus | 'all') => setStatus(value)} defaultValue="Disponible">
+                <SelectTrigger className="w-full md:w-[200px]">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="Disponible">Disponibles</SelectItem>
+                  <SelectItem value="Asignado">Asignados</SelectItem>
                 </SelectContent>
               </Select>
             </div>
