@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, UserCircle } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/firebase';
 import { getAuth, signOut } from 'firebase/auth';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export function DynamicHeaderContent() {
   const pathname = usePathname();
@@ -46,6 +47,11 @@ export function DynamicHeaderContent() {
         variant: 'destructive',
       });
     }
+  };
+  
+  const getInitials = (name: string | null | undefined) => {
+    if (!name) return 'U';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
   const NavLink = ({ href, label }: { href: string; label: string }) => (
@@ -81,13 +87,22 @@ export function DynamicHeaderContent() {
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="icon" className="rounded-full w-14 h-14">
-                    <UserCircle className="h-10 w-10" />
-                    <span className="sr-only">Toggle user menu</span>
+                  <Button variant="ghost" className="relative h-24 w-24 rounded-full">
+                     <Avatar className="h-24 w-24">
+                        <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'Avatar'} />
+                        <AvatarFallback className="text-4xl">{getInitials(user.displayName)}</AvatarFallback>
+                      </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>
+                     <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">{user.displayName}</p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {user.email}
+                        </p>
+                      </div>
+                  </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link href="/profile">Mi Perfil</Link>
@@ -126,8 +141,15 @@ export function DynamicHeaderContent() {
                 <div className="mt-auto border-t pt-6">
                   {user ? (
                     <div className="flex flex-col gap-4">
-                      <Link href="/profile" className="flex items-center gap-2 text-2xl font-medium" onClick={() => setSheetOpen(false)}>
-                        <UserCircle className="w-10 h-10" /> Mi Perfil
+                      <Link href="/profile" className="flex items-center gap-4 text-2xl font-medium" onClick={() => setSheetOpen(false)}>
+                        <Avatar className="h-16 w-16">
+                            <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'Avatar'} />
+                            <AvatarFallback className="text-2xl">{getInitials(user.displayName)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                             <p className="text-lg font-semibold">{user.displayName}</p>
+                             <p className="text-sm text-muted-foreground">Mi Perfil</p>
+                        </div>
                       </Link>
                       <Button onClick={() => { handleLogout(); setSheetOpen(false); }} size="lg">Cerrar Sesión</Button>
                     </div>
