@@ -1,4 +1,5 @@
 import { Timestamp } from "firebase/firestore";
+import type { User as FirebaseUser } from 'firebase/auth';
 
 export type ItemCategory = 'Útiles' | 'Libros' | 'Uniformes';
 export type ItemCondition = 'Nuevo' | 'Como nuevo' | 'Usado';
@@ -22,9 +23,4 @@ export interface Item {
   status: ItemStatus;
 };
 
-export type User = {
-  uid: string;
-  name: string | null;
-  email: string | null;
-  photoURL: string | null;
-}
+export type User = FirebaseUser;
