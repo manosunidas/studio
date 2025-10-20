@@ -76,6 +76,7 @@ export default function ItemPage() {
           ...data,
           materialId: id,
           fechaSolicitud: serverTimestamp(),
+          status: 'Pendiente',
         });
         
         // Update request count on material
@@ -137,7 +138,7 @@ export default function ItemPage() {
                     Volver
                   </Button>
                   
-                   {isAvailable && !isAdmin && (
+                   {isAvailable && !isAdmin && !user && (
                       <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
                         <DialogTrigger asChild>
                           <Button size="lg">
@@ -231,3 +232,5 @@ export default function ItemPage() {
     </div>
   );
 }
+
+    

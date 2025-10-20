@@ -23,6 +23,8 @@ export interface Item {
   asignadoA?: string;
 };
 
+export type SolicitudStatus = 'Pendiente' | 'Rechazada';
+
 export interface Solicitud {
   id: string;
   materialId: string;
@@ -30,6 +32,9 @@ export interface Solicitud {
   nombreCompleto: string;
   direccion: string;
   telefono: string;
+  status: SolicitudStatus;
 }
 
 export type User = FirebaseUser;
+
+    

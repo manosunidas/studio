@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -131,6 +132,14 @@
         },
         "telefono": {
           "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Pendiente",
+            "Rechazada"
+          ],
+          "description": "The status of the request."
         }
       },
       "required": [
@@ -139,7 +148,8 @@
         "fechaSolicitud",
         "nombreCompleto",
         "direccion",
-        "telefono"
+        "telefono",
+        "status"
       ]
     }
   },
@@ -197,3 +207,5 @@
     ]
   }
 }
+
+    

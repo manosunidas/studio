@@ -213,14 +213,17 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
 }
 
 
-function ItemRequests({ item }: { item: Item }) {
+function ItemRequests({ item, requestFilter = 'Pendiente' }: { item: Item, requestFilter?: 'Pendiente' | 'Rechazada' }) {
   const firestore = useFirestore();
   const { toast } = useToast();
   
   const requestsQuery = useMemoFirebase(() => {
     if (!firestore || !item) return null;
-    return collection(firestore, 'materials', item.id, 'requests');
-  }, [firestore, item.id]);
+    return query(
+      collection(firestore, 'materials', item.id, 'requests'),
+      where('status', '==', requestFilter)
+    );
+  }, [firestore, item.id, requestFilter]);
 
   const { data: requests, isLoading: requestsLoading, error } = useCollection<Solicitud>(requestsQuery);
 
@@ -275,25 +278,22 @@ function ItemRequests({ item }: { item: Item }) {
   const rejectRequest = async (solicitudId: string) => {
     if(!firestore || !item) return;
     
-    const itemRef = doc(firestore, 'materials', item.id);
     const requestRef = doc(firestore, 'materials', item.id, 'requests', solicitudId);
+    const updateData = { status: 'Rechazada' as const };
 
-    try {
-        await runTransaction(firestore, async (transaction) => {
-            transaction.delete(requestRef);
-            transaction.update(itemRef, { solicitudes: increment(-1) });
-        });
+    updateDoc(requestRef, updateData).then(() => {
         toast({
             title: 'Solicitud Rechazada',
-            description: 'La solicitud ha sido eliminada.'
+            description: 'La solicitud ha sido marcada como rechazada.'
         });
-    } catch (e) {
+    }).catch((e) => {
         const permissionError = new FirestorePermissionError({
             path: requestRef.path,
-            operation: 'delete',
+            operation: 'update',
+            requestResourceData: updateData
         });
         errorEmitter.emit('permission-error', permissionError);
-    }
+    });
   };
 
   if (requestsLoading) return <p>Cargando solicitudes...</p>;
@@ -303,7 +303,7 @@ function ItemRequests({ item }: { item: Item }) {
   }
   
   if (!requests || requests.length === 0) {
-    return <p className="text-sm text-center text-muted-foreground py-4">Este artículo no tiene solicitudes.</p>;
+    return <p className="text-sm text-center text-muted-foreground py-4">No hay solicitudes con el estado '{requestFilter}'.</p>;
   }
 
   return (
@@ -318,9 +318,10 @@ function ItemRequests({ item }: { item: Item }) {
               <p><strong>Solicitante:</strong> {request.nombreCompleto}</p>
               <p className="text-sm text-muted-foreground"><strong>Dirección:</strong> {request.direccion}</p>
               <p className="text-sm text-muted-foreground"><strong>Teléfono:</strong> {request.telefono}</p>
+               <p className="text-xs text-muted-foreground mt-1"><strong>ID Solicitud:</strong> {request.id}</p>
             </div>
             <div className='flex gap-2 self-end sm:self-center'>
-             {item.status === 'Disponible' && (
+             {item.status === 'Disponible' && request.status === 'Pendiente' && (
                 <>
                 <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -347,7 +348,7 @@ function ItemRequests({ item }: { item: Item }) {
                       <AlertDialogHeader>
                         <AlertDialogTitle>¿Rechazar esta solicitud?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Esta acción eliminará permanentemente la solicitud. Esta acción no se puede deshacer.
+                          Esta acción marcará la solicitud como 'Rechazada' y la moverá al historial de rechazadas. No se puede deshacer.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -385,7 +386,7 @@ function ItemRequests({ item }: { item: Item }) {
   );
 }
 
-function RequestsDashboard({ allAdminItems, isLoading, error }: { allAdminItems: Item[] | null, isLoading: boolean, error: Error | null }) {
+function RequestsDashboard({ allAdminItems, isLoading, error, requestFilter }: { allAdminItems: Item[] | null, isLoading: boolean, error: Error | null, requestFilter: 'Pendiente' | 'Rechazada' }) {
     
     if (isLoading) {
         return <p className="text-center py-8">Cargando artículos...</p>;
@@ -396,20 +397,28 @@ function RequestsDashboard({ allAdminItems, isLoading, error }: { allAdminItems:
     }
 
     const itemsWithRequests = useMemo(() => {
-        return (allAdminItems || []).filter(item => (item.solicitudes || 0) > 0);
-    }, [allAdminItems]);
+       if (!allAdminItems) return [];
+       // For 'Rechazada' filter, we want to show items that *have had* requests, even if the current count is 0
+       if (requestFilter === 'Rechazada') {
+         return allAdminItems;
+       }
+       return allAdminItems.filter(item => (item.solicitudes || 0) > 0 && item.status === 'Disponible');
+    }, [allAdminItems, requestFilter]);
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Solicitudes de Artículos</CardTitle>
+                <CardTitle>Solicitudes {requestFilter === 'Pendiente' ? 'Pendientes' : 'Rechazadas'}</CardTitle>
                 <CardDescription>
-                    Aquí puedes ver los artículos que han sido solicitados. Revisa los solicitantes y asigna el artículo.
+                    {requestFilter === 'Pendiente' 
+                        ? 'Aquí puedes ver los artículos con solicitudes pendientes de revisión.'
+                        : 'Aquí puedes ver el historial de solicitudes que han sido rechazadas.'
+                    }
                 </CardDescription>
             </CardHeader>
             <CardContent>
                 {itemsWithRequests.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">No hay artículos con solicitudes pendientes.</p>
+                    <p className="text-center text-muted-foreground py-8">No hay artículos con solicitudes {requestFilter === 'Pendiente' ? 'pendientes' : 'rechazadas'}.</p>
                 ) : (
                     <Accordion type="single" collapsible className="w-full">
                       {itemsWithRequests.map(item => (
@@ -420,7 +429,7 @@ function RequestsDashboard({ allAdminItems, isLoading, error }: { allAdminItems:
                                     <img src={item.imageUrl} alt={item.title} className="w-16 h-16 object-cover rounded-md" />
                                     <div>
                                         <p className="font-semibold">{item.title}</p>
-                                        <p className="text-sm text-muted-foreground">{item.solicitudes} solicitud(es)</p>
+                                        <p className="text-sm text-muted-foreground">{item.solicitudes} solicitud(es) en total</p>
                                     </div>
                                 </div>
                                 <span className={`mr-4 text-xs font-semibold px-2 py-1 rounded-full ${item.status === 'Asignado' ? 'bg-destructive/20 text-destructive' : 'bg-green-600/20 text-green-800'}`}>
@@ -429,7 +438,7 @@ function RequestsDashboard({ allAdminItems, isLoading, error }: { allAdminItems:
                               </div>
                             </AccordionTrigger>
                             <AccordionContent>
-                              <ItemRequests item={item} />
+                              <ItemRequests item={item} requestFilter={requestFilter} />
                             </AccordionContent>
                          </AccordionItem>
                       ))}
@@ -534,10 +543,11 @@ export default function ProfilePage() {
       </div>
 
       <Tabs defaultValue="requests" onValueChange={() => setRefreshKey(prev => prev + 1)}>
-        <TabsList className="grid w-full grid-cols-3 max-w-lg mx-auto">
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl mx-auto">
           <TabsTrigger value="post-item">Publicar Artículo</TabsTrigger>
           <TabsTrigger value="listings">Mis Publicaciones</TabsTrigger>
           <TabsTrigger value="requests">Solicitudes</TabsTrigger>
+           <TabsTrigger value="rejected">Rechazadas</TabsTrigger>
         </TabsList>
         <TabsContent value="post-item" className="mt-6">
           <PostItemForm onFormSubmit={handleFormSuccess} />
@@ -563,15 +573,14 @@ export default function ProfilePage() {
           </Card>
         </TabsContent>
         <TabsContent value="requests" className="mt-6">
-           <RequestsDashboard allAdminItems={userItems} isLoading={userItemsLoading} error={userItemsError} />
+           <RequestsDashboard allAdminItems={userItems} isLoading={userItemsLoading} error={userItemsError} requestFilter="Pendiente" />
+        </TabsContent>
+         <TabsContent value="rejected" className="mt-6">
+           <RequestsDashboard allAdminItems={userItems} isLoading={userItemsLoading} error={userItemsError} requestFilter="Rechazada" />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
-
-    
-
-    
 
     
