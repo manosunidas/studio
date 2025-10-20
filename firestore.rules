@@ -1,0 +1,146 @@
+/**
+ * @fileoverview Firestore Security Rules for the Manos Unidas Digital application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a user-ownership model for user profiles and a public-read, owner-write model for materials.
+ * Transactions and suggestions are protected with user-specific access control.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profile information.
+ * - /materials/{materialId}: Stores material listings.
+ * - /transactions/{transactionId}: Stores transaction records.
+ * - /suggestions/{suggestionId}: Stores material suggestions.
+ *
+ * Key Security Decisions:
+ * - Users can only read/write their own profile data.
+ * - Anyone can read material listings, but only the owner can modify or delete them.
+ * - Only involved users (donor/claimer) can access transaction details.
+ * - Only the user for whom a suggestion is made can read it.
+ * - No user listing is allowed for the /users collection.
+ *
+ * Denormalization for Authorization:
+ * - Materials include the userId of the user who posted the material, allowing for owner-based write rules without additional reads.
+ * - Transactions include the donorId and claimerId for access control, avoiding the need to fetch user data during rule evaluation.
+ * - Suggestions include the userId for whom the suggestion is made, allowing for user-specific read access.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Controls access to user profile documents.
+     * @path /users/{userId}
+     * @allow (create) User with ID 'user123' creates their profile.
+     *   request.auth.uid == 'user123' && request.resource.data.id == 'user123'
+     * @allow (get) User with ID 'user123' reads their profile.
+     *   request.auth.uid == 'user123'
+     * @allow (update) User with ID 'user123' updates their profile.
+     *   request.auth.uid == 'user123' && resource.data.id == 'user123'
+     * @allow (delete) User with ID 'user123' deletes their profile.
+     *   request.auth.uid == 'user123' && resource.data.id == 'user123'
+     * @deny (create) User with ID 'user123' tries to create profile for 'user456'.
+     *   request.auth.uid == 'user123' && request.resource.data.id == 'user456'
+     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow update: if isOwner(userId) && resource.data.id == request.resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Controls access to material listing documents.
+     * @path /materials/{materialId}
+     * @allow (get) Any user can read a material listing.
+     *   true
+     * @allow (list) Any user can list material listings.
+     *   true
+     * @allow (create) User with ID 'user123' creates a material listing.
+     *   request.auth.uid == 'user123' && request.resource.data.userId == 'user123'
+     * @allow (update) User with ID 'user123' updates their material listing.
+     *   request.auth.uid == 'user123' && resource.data.userId == 'user123'
+     * @allow (delete) User with ID 'user123' deletes their material listing.
+     *   request.auth.uid == 'user123' && resource.data.userId == 'user123'
+     * @deny (create) User with ID 'user123' tries to create a material listing for 'user456'.
+     *   request.auth.uid == 'user123' && request.resource.data.userId == 'user456'
+     * @principle Allows public read access while enforcing document ownership for writes.
+     */
+    match /materials/{materialId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(resource.data.userId);
+    }
+
+    /**
+     * @description Controls access to transaction documents.
+     * @path /transactions/{transactionId}
+     * @allow (get) Donor 'user123' reads a transaction where they are the donor.
+     *   request.auth.uid == 'user123' && resource.data.donorId == 'user123'
+     * @allow (get) Claimer 'user456' reads a transaction where they are the claimer.
+     *   request.auth.uid == 'user456' && resource.data.claimerId == 'user456'
+     * @allow (create) User with ID 'user123' creates a transaction where they are either the donor or the claimer.
+     *   request.auth.uid == 'user123' && (request.resource.data.donorId == 'user123' || request.resource.data.claimerId == 'user123')
+     * @allow (update) Donor 'user123' updates a transaction where they are the donor.
+     *   request.auth.uid == 'user123' && resource.data.donorId == 'user123'
+     * @allow (delete) Donor 'user123' deletes a transaction where they are the donor.
+     *   request.auth.uid == 'user123' && resource.data.donorId == 'user123'
+     * @deny (get) User 'user789' tries to read a transaction where they are not involved.
+     *   request.auth.uid == 'user789' && resource.data.donorId != 'user789' && resource.data.claimerId != 'user789'
+     * @principle Restricts access to transaction details to involved users (donor or claimer).
+     */
+    match /transactions/{transactionId} {
+      allow get: if isTransactionParticipant(resource.data.donorId, resource.data.claimerId);
+      allow list: if false;
+      allow create: if isSignedIn() && (request.resource.data.donorId == request.auth.uid || request.resource.data.claimerId == request.auth.uid);
+      allow update: if isExistingTransactionParticipant(resource.data.donorId, resource.data.claimerId);
+      allow delete: if isExistingTransactionParticipant(resource.data.donorId, resource.data.claimerId);
+    }
+
+    /**
+     * @description Controls access to suggestion documents.
+     * @path /suggestions/{suggestionId}
+     * @allow (get) User with ID 'user123' reads a suggestion made for them.
+     *   request.auth.uid == 'user123' && resource.data.userId == 'user123'
+     * @allow (create) User with ID 'user123' creates a suggestion for themselves.
+     *   request.auth.uid == 'user123' && request.resource.data.userId == 'user123'
+     * @allow (update) User with ID 'user123' updates a suggestion made for them.
+     *   request.auth.uid == 'user123' && resource.data.userId == 'user123'
+     * @allow (delete) User with ID 'user123' deletes a suggestion made for them.
+     *   request.auth.uid == 'user123' && resource.data.userId == 'user123'
+     * @deny (get) User 'user456' tries to read a suggestion made for 'user123'.
+     *   request.auth.uid == 'user456' && resource.data.userId == 'user123'
+     * @principle Restricts access to suggestions to the user for whom the suggestion was made.
+     */
+    match /suggestions/{suggestionId} {
+      allow get: if isOwner(resource.data.userId);
+      allow list: if false;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(resource.data.userId);
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+    }
+
+    function isTransactionParticipant(donorId, claimerId) {
+        return isSignedIn() && (request.auth.uid == donorId || request.auth.uid == claimerId);
+    }
+
+    function isExistingTransactionParticipant(donorId, claimerId) {
+        return isTransactionParticipant(donorId, claimerId) && resource != null;
+    }
+  }
+}

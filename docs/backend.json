@@ -1,0 +1,260 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user in the Manos Unidas Digital application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user entity."
+        },
+        "googleId": {
+          "type": "string",
+          "description": "The unique Google ID associated with the user's account."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "name": {
+          "type": "string",
+          "description": "The user's full name."
+        },
+        "profilePicture": {
+          "type": "string",
+          "description": "URL of the user's profile picture.",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "id",
+        "googleId",
+        "email",
+        "name"
+      ]
+    },
+    "Material": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Material",
+      "type": "object",
+      "description": "Represents a school supply or uniform item available for donation or exchange.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the material entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Material) The ID of the user who posted the material."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the material (e.g., 'Textbook - Math Grade 9')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the material, including its condition."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category of the material (e.g., 'Textbook', 'Uniform', 'Supplies')."
+        },
+        "gradeLevel": {
+          "type": "string",
+          "description": "The grade level the material is suitable for (e.g., 'Grade 9', 'Elementary')."
+        },
+        "condition": {
+          "type": "string",
+          "description": "The condition of the material (e.g., 'New', 'Used - Good', 'Used - Fair')."
+        },
+        "photoUrls": {
+          "type": "array",
+          "description": "URLs of the photos of the material.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isReserved": {
+          "type": "boolean",
+          "description": "Indicates whether the material is currently reserved by a user."
+        },
+        "reservedByUserId": {
+          "type": "string",
+          "description": "Reference to User. The ID of the user who has reserved the material. Null if not reserved."
+        },
+        "datePosted": {
+          "type": "string",
+          "description": "The date and time when the material was posted.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "title",
+        "description",
+        "category",
+        "gradeLevel",
+        "condition",
+        "photoUrls",
+        "isReserved",
+        "datePosted"
+      ]
+    },
+    "Transaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Transaction",
+      "type": "object",
+      "description": "Represents a transaction where a material is claimed/donated.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the transaction entity."
+        },
+        "materialId": {
+          "type": "string",
+          "description": "Reference to Material. The ID of the material involved in the transaction."
+        },
+        "donorId": {
+          "type": "string",
+          "description": "Reference to User. The ID of the user who donated the material."
+        },
+        "claimerId": {
+          "type": "string",
+          "description": "Reference to User. The ID of the user who claimed the material."
+        },
+        "transactionDate": {
+          "type": "string",
+          "description": "The date and time when the transaction occurred.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the transaction (e.g., 'Completed', 'Pending', 'Cancelled')."
+        }
+      },
+      "required": [
+        "id",
+        "materialId",
+        "donorId",
+        "claimerId",
+        "transactionDate",
+        "status"
+      ]
+    },
+    "Suggestion": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Suggestion",
+      "type": "object",
+      "description": "Represents a suggested material based on user preferences and community needs. The AI-powered suggestion tool returns this data.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the suggestion entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. The ID of the user for whom the suggestion is made."
+        },
+        "materialId": {
+          "type": "string",
+          "description": "Reference to Material. The ID of the suggested material."
+        },
+        "suggestionReason": {
+          "type": "string",
+          "description": "The reason why the material is being suggested (e.g., 'Based on your profile', 'Matches community needs')."
+        },
+        "suggestionDate": {
+          "type": "string",
+          "description": "The date and time when the suggestion was made.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "materialId",
+        "suggestionReason",
+        "suggestionDate"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information. Only the authenticated user can read/write their own document.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/materials/{materialId}",
+        "definition": {
+          "entityName": "Material",
+          "schema": {
+            "$ref": "#/backend/entities/Material"
+          },
+          "description": "Stores material listings. Includes the userId for authorization. Anyone can read material, but only the user who posted the material can modify or delete it.",
+          "params": [
+            {
+              "name": "materialId",
+              "description": "The unique identifier for the material."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/transactions/{transactionId}",
+        "definition": {
+          "entityName": "Transaction",
+          "schema": {
+            "$ref": "#/backend/entities/Transaction"
+          },
+          "description": "Stores transaction records. Includes donorId and claimerId for authorization. Rules ensure only involved users can access transaction details.",
+          "params": [
+            {
+              "name": "transactionId",
+              "description": "The unique identifier for the transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/suggestions/{suggestionId}",
+        "definition": {
+          "entityName": "Suggestion",
+          "schema": {
+            "$ref": "#/backend/entities/Suggestion"
+          },
+          "description": "Stores material suggestions. Includes userId for authorization. Only the user for whom the suggestion is made can read it.",
+          "params": [
+            {
+              "name": "suggestionId",
+              "description": "The unique identifier for the suggestion."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to support the Manos Unidas Digital application, facilitating the donation and exchange of school materials and uniforms. The design prioritizes authorization independence, clarity, and scalability.\n\n**Authorization Independence:**\n\n*   **Materials:** The `materials` collection includes the `userId` field, which indicates the owner of the material. The rules use `request.auth.uid == resource.data.userId` for write operations, ensuring only the owner can modify/delete the document. This avoids any need for `get()` calls to parent documents.\n*   **Transactions:** Transactions also include `donorId` and `claimerId`, which are denormalized to ensure rules do not need to read data from other collections to authorize the operation.\n*   **Suggestions:** Suggestions include the `userId` of the user the suggestion is for and the `materialId` of the material suggested. Rules ensure that only the user for whom the suggestion is made can read it.\n\n**Structural Segregation:**\n\n*   User data is stored in a dedicated `/users/{userId}` collection, ensuring private user data is separate from public material listings. This isolation simplifies security rules.\n*   Material listings are stored in the `/materials` collection, allowing for easy listing and searching. Different access needs are handled via rules based on the `userId` field in the material document, indicating the owner.\n\n**Access Modeling:**\n\n*   **Path-Based Ownership:** The `/users/{userId}` collection follows the path-based ownership model, ensuring only the authenticated user can access their data.\n*   **Material Ownership:** The `materials` collection utilizes the `userId` field to determine ownership. Rules enforce that only the user who posted the material can modify or delete it.\n\n**QAPs (Rules are not Filters):**\n\n*   The structure ensures that `list` operations are secure. The rules for the `/materials` collection allow anyone to list materials but restrict write access based on the `userId` field, preventing unauthorized modifications.\n\nThis structure adheres to the core design principles by ensuring authorization independence through denormalization, structural segregation for homogeneous security postures, consistent access modeling, and clear data organization."
+  }
+}
