@@ -33,7 +33,11 @@ function initializeFirebaseAdmin() {
     if (admin.apps.length === 0) {
         // When deployed to App Hosting, the SDK is automatically initialized.
         // For local development, it might need GOOGLE_APPLICATION_CREDENTIALS.
-        admin.initializeApp();
+        try {
+            admin.initializeApp();
+        } catch (e: any) {
+            console.error("Firebase Admin SDK initialization failed:", e.message);
+        }
     }
     return admin.firestore();
 }
