@@ -7,7 +7,6 @@ import { useRouter, useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { createRequest } from '@/ai/flows/create-request-flow';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,8 +14,9 @@ import { Heart, User, MapPin, Tag, ArrowLeft, Mail, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { doc, addDoc, collection, serverTimestamp, runTransaction, updateDoc, increment } from 'firebase/firestore';
+
 
 import {
   Dialog,
@@ -60,36 +60,51 @@ export default function ItemPage() {
   const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
 
   const handleRequest = async (data: RequestFormData) => {
-    if (!id) return;
+    if (!id || !firestore) return;
     setIsSubmitting(true);
     
+    const requestsCollectionRef = collection(firestore, 'materials', id, 'requests');
+    const materialDocRef = doc(firestore, 'materials', id);
+
     const newRequestData = {
       materialId: id,
-      ...data,
+      nombreCompleto: data.nombreCompleto,
+      direccion: data.direccion,
+      telefono: data.telefono,
+      fechaSolicitud: serverTimestamp(),
+      status: 'Pendiente' as const,
     };
     
     try {
-      // Call the server action
-      const result = await createRequest(newRequestData);
+      // Use a transaction to ensure atomicity
+      await runTransaction(firestore, async (transaction) => {
+        // First, add the new request document
+        const newRequestRef = doc(requestsCollectionRef); // Create a new doc ref inside the transaction
+        transaction.set(newRequestRef, newRequestData);
+        
+        // Then, update the solicitudes count on the material
+        transaction.update(materialDocRef, {
+            solicitudes: increment(1)
+        });
+      });
 
-      if (result.success) {
-        toast({
-            title: '¡Solicitud enviada!',
-            description: 'Tu solicitud ha sido registrada. El donante será notificado.',
-        });
-        setRequestDialogOpen(false);
-      } else {
-        // If the server action returns an error, display it.
-        throw new Error(result.message);
-      }
+      toast({
+          title: '¡Solicitud enviada!',
+          description: 'Tu solicitud ha sido registrada. El donante será notificado.',
+      });
+      setRequestDialogOpen(false);
+      
     } catch (e: any) {
-        // This will catch network errors or errors thrown from the server action.
-        console.error("Error submitting request:", e);
-        toast({
-            variant: "destructive",
-            title: "Error al enviar la solicitud",
-            description: e.message || 'No se pudo completar la acción. Inténtalo de nuevo.',
-        });
+      console.error("Error submitting request:", e);
+
+      // Create and emit a contextual error for better debugging.
+      const permissionError = new FirestorePermissionError({
+          path: `materials/${id}/requests`,
+          operation: 'create',
+          requestResourceData: newRequestData
+      });
+      errorEmitter.emit('permission-error', permissionError);
+
     } finally {
         setIsSubmitting(false);
     }
