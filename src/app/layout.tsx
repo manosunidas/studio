@@ -4,28 +4,7 @@ import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
 import { Footer } from '@/components/layout/footer';
 import { FirebaseClientProvider } from '@/firebase';
-import dynamic from 'next/dynamic';
-import { Skeleton } from '@/components/ui/skeleton';
-
-const DynamicHeader = dynamic(() => import('@/components/layout/dynamic-header'), {
-  ssr: false,
-  loading: () => (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-24 items-center justify-between px-4 md:px-6">
-        <div className="flex items-center gap-2 font-bold text-5xl">
-          <Skeleton className="h-24 w-24 rounded-lg" />
-          <Skeleton className="h-10 w-48 hidden sm:inline" />
-        </div>
-        <div className="flex items-center gap-4">
-          <Skeleton className="w-24 h-8 rounded-md md:w-32" />
-          <Skeleton className="w-12 h-12 rounded-full hidden md:block" />
-          <Skeleton className="w-8 h-8 rounded-md md:hidden" />
-        </div>
-      </div>
-    </header>
-  ),
-});
-
+import Header from '@/components/layout/header';
 
 export const metadata: Metadata = {
   title: 'Manos Unidas Digital',
@@ -55,7 +34,7 @@ export default function RootLayout({
         )}
       >
         <FirebaseClientProvider>
-          <DynamicHeader />
+          <Header />
           <main className="flex-grow">{children}</main>
           <Footer />
           <Toaster />
