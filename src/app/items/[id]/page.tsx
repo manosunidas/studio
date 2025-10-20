@@ -210,11 +210,6 @@ export default function ItemPage() {
                     <strong>Nivel Escolar:</strong>
                     <Badge variant="outline">{item.gradeLevel}</Badge>
                 </div>
-                <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-muted-foreground"/>
-                    <strong>Ubicación:</strong>
-                    <span>Ciudad Ejemplo</span>
-                </div>
             </CardContent>
           </Card>
            
