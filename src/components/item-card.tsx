@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Trash2 } from 'lucide-react';
+import { ArrowRight, Trash2, Pencil } from 'lucide-react';
 import { useUser } from '@/firebase';
 import {
   AlertDialog,
@@ -29,11 +29,13 @@ interface ItemCardProps {
   item: Item;
   showDelete?: boolean;
   onDelete?: (id: string) => void;
+  showEdit?: boolean;
+  onEdit?: (item: Item) => void;
 }
 
-export function ItemCard({ item, showDelete = false, onDelete }: ItemCardProps) {
+export function ItemCard({ item, showDelete = false, onDelete, showEdit = false, onEdit }: ItemCardProps) {
   const { user } = useUser();
-  const isOwner = user?.uid === item.postedBy;
+  const isAdmin = user?.email === 'jhelenandreat@gmail.com';
 
   return (
     <Card className="flex flex-col h-full overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
@@ -69,7 +71,12 @@ export function ItemCard({ item, showDelete = false, onDelete }: ItemCardProps) 
             Ver Detalles <ArrowRight className="ml-2" />
           </Link>
         </Button>
-         {isOwner && showDelete && onDelete && (
+         {isAdmin && showEdit && onEdit && (
+            <Button variant="outline" size="icon" title="Editar artículo" onClick={() => onEdit(item)}>
+              <Pencil />
+            </Button>
+         )}
+         {isAdmin && showDelete && onDelete && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="icon" title="Eliminar artículo">

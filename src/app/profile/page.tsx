@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -25,6 +26,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
@@ -209,6 +218,158 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
           </CardFooter>
         </form>
       </Card>
+  );
+}
+
+function EditItemForm({ item, onFormSubmit, onCancel }: { item: Item, onFormSubmit: () => void, onCancel: () => void }) {
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { register, handleSubmit, control, formState: { errors } } = useForm<FormData>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      title: item.title,
+      description: item.description,
+      category: item.category,
+      condition: item.condition,
+      gradeLevel: item.gradeLevel,
+      imageUrl: item.imageUrl,
+    },
+  });
+
+  const onSubmit = (data: FormData) => {
+    if (!firestore) return;
+
+    setIsSubmitting(true);
+    const itemRef = doc(firestore, 'materials', item.id);
+    const updateData = {
+      ...data,
+    };
+
+    updateDoc(itemRef, updateData).then(() => {
+      toast({
+        title: '¡Artículo actualizado!',
+        description: 'Los cambios han sido guardados.',
+      });
+      onFormSubmit();
+    }).catch((serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: itemRef.path,
+        operation: 'update',
+        requestResourceData: updateData,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    }).finally(() => {
+      setIsSubmitting(false);
+    });
+  };
+
+  return (
+    <DialogContent className="sm:max-w-[625px]">
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <DialogHeader>
+          <DialogTitle>Editar Artículo</DialogTitle>
+          <DialogDescription>
+            Realiza los cambios necesarios en la información del artículo.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-6">
+          <div className="grid gap-2">
+            <Label htmlFor="title">Título del Artículo</Label>
+            <Input id="title" {...register('title')} disabled={isSubmitting} />
+            {errors.title && <p className="text-sm text-destructive">{errors.title.message}</p>}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="description">Descripción</Label>
+            <Textarea
+              id="description"
+              {...register('description')}
+              disabled={isSubmitting}
+            />
+            {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="category">Categoría</Label>
+              <Controller
+                name="category"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
+                    <SelectTrigger id="category">
+                      <SelectValue placeholder="Selecciona" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Ropa">Ropa</SelectItem>
+                      <SelectItem value="Útiles">Útiles</SelectItem>
+                      <SelectItem value="Tecnología">Tecnología</SelectItem>
+                      <SelectItem value="Libros">Libros</SelectItem>
+                      <SelectItem value="Uniformes">Uniformes</SelectItem>
+                      <SelectItem value="Calzado">Calzado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.category && <p className="text-sm text-destructive">{errors.category.message}</p>}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="condition">Condición</Label>
+              <Controller
+                name="condition"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
+                    <SelectTrigger id="condition">
+                      <SelectValue placeholder="Selecciona" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Nuevo">Nuevo</SelectItem>
+                      <SelectItem value="Como nuevo">Como nuevo</SelectItem>
+                      <SelectItem value="Usado">Usado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.condition && <p className="text-sm text-destructive">{errors.condition.message}</p>}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="grade-level">Nivel Escolar</Label>
+              <Controller
+                name="gradeLevel"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
+                    <SelectTrigger id="grade-level">
+                      <SelectValue placeholder="Selecciona" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Preescolar">Preescolar</SelectItem>
+                      <SelectItem value="Primaria">Primaria</SelectItem>
+                      <SelectItem value="Secundaria">Secundaria</SelectItem>
+                      <SelectItem value="Todos">Todos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.gradeLevel && <p className="text-sm text-destructive">{errors.gradeLevel.message}</p>}
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="imageUrl">URL de la Foto del Artículo</Label>
+            <Input id="imageUrl" type="url" {...register('imageUrl')} disabled={isSubmitting} />
+            <p className="text-xs text-muted-foreground">Pega la URL de una foto clara del artículo.</p>
+            {errors.imageUrl && <p className="text-sm text-destructive">{errors.imageUrl.message as string}</p>}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>Cancelar</Button>
+          <Button size="lg" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
 }
 
@@ -418,7 +579,9 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
                         ? allItemRequests.filter(r => r.status === 'Pendiente')
                         : allItemRequests.filter(r => r.status === requestStatusFilter);
                     
-                    if (requestStatusFilter !== 'all' && filteredRequests.length === 0) return null;
+                    if (requestStatusFilter !== 'all' && filteredRequests.length === 0 && requestStatusFilter !== 'Pendiente') return null;
+                    if(requestStatusFilter === 'Pendiente' && item.status === 'Asignado') return null;
+
 
                     return (
                         <AccordionItem value={item.id} key={item.id}>
@@ -501,6 +664,7 @@ export default function ProfilePage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
 
   const isAdmin = user?.email === 'jhelenandreat@gmail.com';
 
@@ -543,6 +707,15 @@ export default function ProfilePage() {
 
   const handleAction = () => {
     setRefreshKey(prev => prev + 1);
+  };
+  
+  const handleEdit = (item: Item) => {
+    setEditingItem(item);
+  };
+
+  const handleEditFormSubmit = () => {
+    setEditingItem(null);
+    handleAction();
   };
 
   if (isUserLoading || !user) {
@@ -608,7 +781,7 @@ export default function ProfilePage() {
               {userItemsLoading && <p className="text-center">Cargando tus artículos...</p>}
               {!userItemsLoading && userItems && userItems.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {userItems.map(item => <ItemCard key={item.id} item={item} showDelete={true} onDelete={handleDeleteItem} />)}
+                  {userItems.map(item => <ItemCard key={item.id} item={item} showDelete={true} onDelete={handleDeleteItem} showEdit={true} onEdit={handleEdit} />)}
                 </div>
               ) : (
                 !userItemsLoading && <p className="text-center text-muted-foreground">Aún no se han publicado artículos.</p>
@@ -620,6 +793,10 @@ export default function ProfilePage() {
            <ItemRequestHistory allAdminItems={userItems} isLoading={userItemsLoading} error={userItemsError} onAction={handleAction}/>
         </TabsContent>
       </Tabs>
+      
+      <Dialog open={!!editingItem} onOpenChange={(isOpen) => !isOpen && setEditingItem(null)}>
+        {editingItem && <EditItemForm item={editingItem} onFormSubmit={handleEditFormSubmit} onCancel={() => setEditingItem(null)} />}
+      </Dialog>
     </div>
   );
 }
