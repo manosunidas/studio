@@ -112,11 +112,13 @@ export function Header() {
             <HandHeart className="h-6 w-6 text-primary" />
             <span className="hidden sm:inline">Manos Unidas</span>
           </Link>
-          <nav className="hidden md:flex items-center gap-6">
-            {isClient && navLinks.map((link) => (
-              <NavLink key={link.href} {...link} />
-            ))}
-          </nav>
+          {isClient && (
+            <nav className="hidden md:flex items-center gap-6">
+              {navLinks.map((link) => (
+                <NavLink key={link.href} {...link} />
+              ))}
+            </nav>
+          )}
         </div>
 
         <div className="hidden md:flex items-center gap-4">
