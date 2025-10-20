@@ -3,7 +3,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 
 export type ItemCategory = 'Ropa' | 'Útiles' | 'Tecnología' | 'Libros' | 'Uniformes';
 export type ItemCondition = 'Nuevo' | 'Como nuevo' | 'Usado';
-export type ItemGradeLevel = 'Primaria' | 'Secundaria' | 'Bachillerato' | 'Todos';
+export type ItemGradeLevel = 'Preescolar' | 'Primaria' | 'Secundaria' | 'Todos';
 export type ItemStatus = 'Disponible' | 'Reservado' | 'Entregado';
 
 export interface Item {
@@ -15,7 +15,7 @@ export interface Item {
   gradeLevel: ItemGradeLevel;
   imageUrl: string;
   imageHint: string;
-  postedBy: string; // User's email
+  postedBy: string; // User's UID
   postedByName?: string; // User's display name
   datePosted: Timestamp;
   isReserved: boolean;

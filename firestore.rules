@@ -1,152 +1,134 @@
 /**
- * @file Firebase Security Rules for Manos Unidas Digital
+ * @fileoverview Firestore Security Rules for Manos Unidas Digital.
  *
- * @corePhilosophy This ruleset enforces a user-ownership model for personal data and a public-read, owner-write model for materials.
+ * Core Philosophy:
+ * This ruleset enforces a user-ownership model for user profiles and
+ * material listings, ensuring users can only manage their own data.
+ * Public read access is granted for materials.
  *
- * @dataStructure
- *  - /users/{userId}: Stores personal user information; access is restricted to the authenticated user.
- *  - /materials/{materialId}: Stores material listings; read access is public, but write access is restricted to the material's owner.
- *  - /transactions/{transactionId}: Stores transaction data; access is restricted to the donor and claimer.
- *  - /suggestions/{suggestionId}: Stores material suggestions; access is restricted to the user for whom the suggestion was made.
+ * Data Structure:
+ * - /users/{userId}: Stores user profile information, accessible only to the user.
+ * - /materials/{materialId}: Stores material listings, publicly readable but
+ *   modifiable only by the owner (the user who created the listing).
+ * - /transactions/{transactionId}: Stores transaction data, accessible only to
+ *   the users involved in the transaction (donor or claimer).
+ * - /suggestions/{suggestionId}: Stores material suggestions, accessible only to
+ *   the user for whom the suggestion was made.
  *
- * @keySecurityDecisions
- *  - Users can only access their own data under /users/{userId}.
- *  - Material listings are publicly readable, but only the owner can modify or delete them.
- *  - Listing of users and suggestions is disallowed to prevent information leakage.
+ * Key Security Decisions:
+ * - Users can only create, update, and delete their own user documents.
+ * - Material listings are publicly readable.
+ * - Only the owner of a material can update or delete it.
+ * - Transactions are only accessible to the donor and claimer.
+ * - Suggestions are only accessible to the user for whom they are made.
+ * - Listing of user documents is disallowed.
  *
- * @denormalizationForAuthorization
- *  - Materials include the userId of the owner, enabling ownership checks without additional reads.
- *  - Transactions include donorId and claimerId, allowing access control without external lookups.
- *  - Suggestions include the userId of the intended recipient, enabling recipient-based access control.
+ * Denormalization for Authorization:
+ * The `materials` collection denormalizes the `userId` field directly onto
+ * each material document. This allows for simple `isOwner()` checks without
+ * needing to perform additional `get()` operations. Transactions also denormalize
+ * `donorId` and `claimerId` for similar reasons.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to user profile information.
+     * @description Defines if the current user is signed in
+     * @return {bool}
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the requesting user is the owner of the resource.
+     * @param {string} userId - The user ID to compare against the request's auth UID.
+     * @return {bool} - True if the user is the owner, false otherwise.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the requesting user is the owner of the resource, ensuring the resource exists.
+     * @param {string} userId - The user ID to compare against the request's auth UID.
+     * @return {bool} - True if the user is the owner and the resource exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Grants access to a user's profile data.
      * @path /users/{userId}
-     * @allow (create) User with ID 'user123' creates their profile.
-     *   - request.auth.uid: 'user123'
-     *   - request.resource.data.id: 'user123'
-     * @allow (get) User with ID 'user123' retrieves their profile.
-     *   - request.auth.uid: 'user123'
-     * @deny (update) User with ID 'user456' attempts to update user 'user123' profile.
-     *   - request.auth.uid: 'user456'
-     * @principle Enforces strict user-ownership: only the authenticated user can access their own data.
+     * @allow (create) - Authenticated user with matching userId creates their profile.
+     * @allow (get, update, delete) - Authenticated user with matching userId reads/modifies their profile.
+     * @deny (create) - Unauthenticated user attempts to create a profile.
+     * @deny (update, delete) - Authenticated user attempts to modify another user's profile.
+     * @deny (list) - Listing users is not allowed.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      allow get: if isSignedIn() && isOwner(userId);
+      allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isSignedIn() && isOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isSignedIn() && isOwner(userId) && resource != null;
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to material listings.
+     * @description Grants access to material listings.
      * @path /materials/{materialId}
-     * @allow (get) Any user can read a material listing.
-     * @allow (list) Any user can list material listings.
-     * @allow (create) User with ID 'user123' creates a material listing with userId: 'user123'.
-     *   - request.auth.uid: 'user123'
-     *   - request.resource.data.userId: 'user123'
-     * @deny (update) User with ID 'user456' attempts to update a material listing owned by 'user123'.
-     *   - request.auth.uid: 'user456'
-     *   - resource.data.userId: 'user123'
-     * @principle Allows public read access but restricts write access to the material's owner.
+     * @allow (get, list) - Anyone can read or list material listings.
+     * @allow (create) - Authenticated user creates a material listing with their userId.
+     * @allow (update, delete) - Authenticated user with matching userId modifies/deletes their material listing.
+     * @deny (create) - Unauthenticated user attempts to create a material listing.
+     * @deny (update, delete) - Authenticated user attempts to modify another user's material listing.
+     * @principle Enforces document ownership for writes to material listings, allows public reads.
      */
     match /materials/{materialId} {
-      function isOwner(ownerId) {
-        return request.auth.uid == ownerId;
-      }
-
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isExistingOwner(ownerId) {
-        return isOwner(ownerId) && resource != null;
-      }
-
-      allow get, list: if true;
+      allow get: if true;
+      allow list: if true;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && isExistingOwner(resource.data.userId);
-      allow delete: if isSignedIn() && isExistingOwner(resource.data.userId);
+      allow update: if isExistingOwner(resource.data.userId);
+      allow delete: if isExistingOwner(resource.data.userId);
     }
 
     /**
-     * @description Controls access to transaction records.
+     * @description Grants access to transaction records.
      * @path /transactions/{transactionId}
-     * @allow (get) User with ID 'user123' retrieves a transaction where they are the donor.
-     *   - request.auth.uid: 'user123'
-     *   - resource.data.donorId: 'user123'
-     * @allow (get) User with ID 'user456' retrieves a transaction where they are the claimer.
-     *   - request.auth.uid: 'user456'
-     *   - resource.data.claimerId: 'user456'
-     * @deny (update) User with ID 'user789' attempts to update a transaction they are not involved in.
-     *   - request.auth.uid: 'user789'
-     *   - resource.data.donorId: 'user123'
-     *   - resource.data.claimerId: 'user456'
-     * @principle Restricts access to transaction details to the involved users (donor and claimer).
+     * @allow (get) - Authenticated user can read transaction record if they are the donor or claimer.
+     * @allow (list) - No listing of transactions.
+     * @allow (create) - Authenticated user can create transaction record.
+     * @deny (update, delete) - No updates or deletes to transactions.
+     * @deny (get) - Authenticated user cannot read transaction if they are not the donor or claimer.
+     * @principle Enforces document ownership for writes to material listings, allows public reads.
      */
     match /transactions/{transactionId} {
-      function isDonorOrClaimer(donorId, claimerId) {
-        return request.auth.uid == donorId || request.auth.uid == claimerId;
-      }
-
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isExistingDonorOrClaimer(donorId, claimerId) {
-        return isSignedIn() && isDonorOrClaimer(donorId, claimerId) && resource != null;
-      }
-
-      allow get: if isSignedIn() && isDonorOrClaimer(resource.data.donorId, resource.data.claimerId);
+      allow get: if isSignedIn() && (resource.data.donorId == request.auth.uid || resource.data.claimerId == request.auth.uid);
       allow list: if false;
-      allow create: if isSignedIn() && (request.resource.data.donorId == request.auth.uid || request.resource.data.claimerId == request.auth.uid);
-      allow update: if isExistingDonorOrClaimer(resource.data.donorId, resource.data.claimerId);
-      allow delete: if isExistingDonorOrClaimer(resource.data.donorId, resource.data.claimerId);
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Controls access to material suggestions.
+     * @description Grants access to suggestions.
      * @path /suggestions/{suggestionId}
-     * @allow (get) User with ID 'user123' retrieves a suggestion made for them.
-     *   - request.auth.uid: 'user123'
-     *   - resource.data.userId: 'user123'
-     * @deny (update) User with ID 'user456' attempts to update a suggestion made for 'user123'.
-     *   - request.auth.uid: 'user456'
-     *   - resource.data.userId: 'user123'
-     * @principle Restricts access to suggestions to the user for whom the suggestion was made.
+     * @allow (get) - Authenticated user can read suggestion record if they are the intended user.
+     * @allow (list) - No listing of suggestions.
+     * @allow (create) - No creating of suggestions from client.
+     * @deny (update, delete) - No updates or deletes to suggestions.
+     * @deny (get) - Authenticated user cannot read suggestion if they are not the intended user.
+     * @principle Enforces document ownership for writes to material listings, allows public reads.
      */
     match /suggestions/{suggestionId} {
-      function isSuggestionForUser(userId) {
-        return request.auth.uid == userId;
-      }
-
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isExistingSuggestionForUser(userId) {
-        return isSignedIn() && isSuggestionForUser(userId) && resource != null;
-      }
-
-      allow get: if isSignedIn() && isSuggestionForUser(resource.data.userId);
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow list: if false;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isExistingSuggestionForUser(resource.data.userId);
-      allow delete: if isExistingSuggestionForUser(resource.data.userId);
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }

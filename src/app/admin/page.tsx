@@ -72,6 +72,7 @@ export default function AdminPage() {
         const file = data.picture[0];
         const reader = new FileReader();
 
+        reader.readAsDataURL(file);
         reader.onload = async (e) => {
             try {
                 const fileAsDataURL = e.target?.result as string;
@@ -95,7 +96,7 @@ export default function AdminPage() {
                     gradeLevel: data.gradeLevel,
                     imageUrl: imageUrl,
                     imageHint: 'school supplies',
-                    postedBy: user.email,
+                    postedBy: user.uid, // Using UID to comply with security rules
                     postedByName: user.displayName,
                     datePosted: serverTimestamp(),
                     isReserved: false,
@@ -111,7 +112,7 @@ export default function AdminPage() {
                  console.error("Error al crear el artículo:", error);
                 toast({
                     title: 'Error al publicar',
-                    description: error.message || 'Hubo un problema al crear el artículo. Inténtalo de nuevo.',
+                    description: error.message || 'Hubo un problema al crear el artículo. Revisa los permisos de la base de datos.',
                     variant: 'destructive',
                 });
             } finally {
@@ -128,8 +129,6 @@ export default function AdminPage() {
             });
              setIsSubmitting(false);
         }
-        
-        reader.readAsDataURL(file);
 
     } catch (error: any) {
         console.error("Error al preparar la publicación:", error);
