@@ -47,8 +47,8 @@ service cloud.firestore {
       allow get: if isSignedIn() && isOwner(userId);
       allow list: if false;
       allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isSignedIn() && isOwner(userId);
-      allow delete: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isSignedIn() && isOwner(userId) && resource != null;
     }
 
     /**
@@ -73,10 +73,14 @@ service cloud.firestore {
         return request.auth != null;
       }
 
+      function isExistingOwner(ownerId) {
+        return isOwner(ownerId) && resource != null;
+      }
+
       allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && isOwner(resource.data.userId);
-      allow delete: if isSignedIn() && isOwner(resource.data.userId);
+      allow update: if isSignedIn() && isExistingOwner(resource.data.userId);
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.userId);
     }
 
     /**
@@ -103,11 +107,15 @@ service cloud.firestore {
         return request.auth != null;
       }
 
+      function isExistingDonorOrClaimer(donorId, claimerId) {
+        return isSignedIn() && isDonorOrClaimer(donorId, claimerId) && resource != null;
+      }
+
       allow get: if isSignedIn() && isDonorOrClaimer(resource.data.donorId, resource.data.claimerId);
       allow list: if false;
       allow create: if isSignedIn() && (request.resource.data.donorId == request.auth.uid || request.resource.data.claimerId == request.auth.uid);
-      allow update: if isSignedIn() && isDonorOrClaimer(resource.data.donorId, resource.data.claimerId);
-      allow delete: if isSignedIn() && isDonorOrClaimer(resource.data.donorId, resource.data.claimerId);
+      allow update: if isExistingDonorOrClaimer(resource.data.donorId, resource.data.claimerId);
+      allow delete: if isExistingDonorOrClaimer(resource.data.donorId, resource.data.claimerId);
     }
 
     /**
@@ -130,11 +138,15 @@ service cloud.firestore {
         return request.auth != null;
       }
 
+      function isExistingSuggestionForUser(userId) {
+        return isSignedIn() && isSuggestionForUser(userId) && resource != null;
+      }
+
       allow get: if isSignedIn() && isSuggestionForUser(resource.data.userId);
       allow list: if false;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && isSuggestionForUser(resource.data.userId);
-      allow delete: if isSignedIn() && isSuggestionForUser(resource.data.userId);
+      allow update: if isExistingSuggestionForUser(resource.data.userId);
+      allow delete: if isExistingSuggestionForUser(resource.data.userId);
     }
   }
 }
