@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -68,11 +69,11 @@ export default function ItemPage() {
   const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
 
   const handleReserve = async (data: ReservationFormData) => {
-    if (!item || !itemRef || !user) return;
+    if (!item || !itemRef) return;
     
     const updatedData = { 
       isReserved: true, 
-      reservedBy: user.email, 
+      reservedBy: 'Reservado por un visitante', // No longer requires user email
       status: 'Reservado' as const,
       reserverFullName: data.fullName,
       reserverAddress: data.address,
@@ -123,13 +124,6 @@ export default function ItemPage() {
   const hasReserved = item.isReserved && item.reservedBy === user?.email;
   const isReservedByOther = item.isReserved && item.reservedBy !== user?.email && !isOwner;
 
-  const getContactEmail = () => {
-    if (isOwner && item.reservedBy) return item.reservedBy;
-    if (hasReserved) return item.postedBy;
-    return null;
-  }
-
-  const contactEmail = getContactEmail();
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-12 md:py-20">
@@ -154,26 +148,16 @@ export default function ItemPage() {
             <div className="flex items-start justify-between gap-4">
                 <h1 className="text-3xl md:text-4xl font-bold font-headline">{item.title}</h1>
                 <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
-                  {user && (
+                  
                   <Button onClick={() => router.back()} variant="outline">
                     <ArrowLeft className="mr-2 h-5 w-5" />
                     Volver
                   </Button>
-                  )}
+                  
                    {canReserve && (
                       <Dialog open={isReservationDialogOpen} onOpenChange={setReservationDialogOpen}>
                         <DialogTrigger asChild>
-                          <Button size="lg" onClick={() => {
-                             if (!user) {
-                                toast({
-                                  title: 'Inicia sesión para reservar',
-                                  description: 'Debes iniciar sesión para poder reservar un artículo.',
-                                  variant: 'destructive',
-                                });
-                                router.push('/login');
-                                return;
-                              }
-                          }}>
+                          <Button size="lg">
                             <Heart className="mr-2 h-5 w-5" />
                             Reservar
                           </Button>
@@ -301,3 +285,5 @@ export default function ItemPage() {
     </div>
   );
 }
+
+    
