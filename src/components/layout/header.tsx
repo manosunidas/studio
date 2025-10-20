@@ -33,12 +33,6 @@ export function Header() {
   
   const isAdmin = user?.email === 'jhelenandreat@gmail.com';
 
-  const navLinks = [
-    { href: '/', label: 'Inicio' },
-    ...(user ? [{ href: '/profile', label: 'Mis Artículos' }] : []),
-    ...(isAdmin ? [{ href: '/admin', label: 'Admin' }] : []),
-  ];
-
   const handleLogout = async () => {
     try {
       await signOut(getAuth());
@@ -68,6 +62,12 @@ export function Header() {
       {label}
     </Link>
   );
+
+  const navLinks = [
+    { href: '/', label: 'Inicio' },
+    ...(user ? [{ href: '/profile', label: 'Mis Artículos' }] : []),
+    ...(isAdmin ? [{ href: '/admin', label: 'Admin' }] : []),
+  ];
 
   const AuthButtons = () => (
     <div className="flex items-center gap-2">
