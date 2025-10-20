@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@radform/resolvers/zod';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ItemCard } from '@/components/item-card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -186,7 +186,7 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
                           <SelectItem value="Primaria">Primaria</SelectItem>
                           <SelectItem value="Secundaria">Secundaria</SelectItem>
                           <SelectItem value="Todos">Todos</SelectItem>
-                        SelectContent>
+                        </SelectContent>
                       </Select>
                     )}
                   />
@@ -259,7 +259,7 @@ function ItemRequests({ item }: { item: Item }) {
             </div>
              <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button size="sm">Asignar Artículo</Button>
+                  <Button size="sm" disabled={item.status === 'Asignado'}>Asignar Artículo</Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
@@ -358,8 +358,10 @@ export default function ProfilePage() {
 
   const userItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
-    return query(collection(firestore, 'materials'), where('postedBy', '==', user.uid));
-  }, [firestore, user?.uid]);
+    // As an admin, we want to see all items, not just the ones posted by the admin.
+    // So we remove the where clause for 'postedBy'.
+    return query(collection(firestore, 'materials'));
+  }, [firestore, user?.uid, refreshKey]);
 
   const { data: userItems, isLoading: userItemsLoading } = useCollection<Item>(userItemsQuery);
 
@@ -372,6 +374,7 @@ export default function ProfilePage() {
             title: 'Artículo eliminado',
             description: 'Tu publicación ha sido eliminada con éxito.'
         });
+        setRefreshKey(prev => prev + 1);
     }).catch((serverError) => {
         const permissionError = new FirestorePermissionError({
             path: itemRef.path,
@@ -427,7 +430,7 @@ export default function ProfilePage() {
         <Button variant="outline" className="ml-auto" onClick={() => toast({ title: 'Próximamente', description: '¡Pronto podrás editar tu perfil!'})}>Editar Perfil</Button>
       </div>
 
-      <Tabs defaultValue="post-item">
+      <Tabs defaultValue="post-item" onValueChange={() => setRefreshKey(prev => prev + 1)}>
         <TabsList className="grid w-full grid-cols-3 max-w-lg mx-auto">
           <TabsTrigger value="post-item">Publicar Artículo</TabsTrigger>
           <TabsTrigger value="listings">Mis Publicaciones</TabsTrigger>
@@ -451,7 +454,7 @@ export default function ProfilePage() {
                   {userItems.map(item => <ItemCard key={item.id} item={item} showDelete={true} onDelete={handleDeleteItem} />)}
                 </div>
               ) : (
-                !userİsLoading && <p className="text-center text-muted-foreground">Aún no has publicado ningún artículo.</p>
+                !userItemsLoading && <p className="text-center text-muted-foreground">Aún no se han publicado artículos.</p>
               )}
             </CardContent>
           </Card>
