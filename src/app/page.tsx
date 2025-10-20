@@ -102,6 +102,7 @@ export default function Home() {
                   <SelectItem value="Tecnología">Tecnología</SelectItem>
                   <SelectItem value="Libros">Libros</SelectItem>
                   <SelectItem value="Uniformes">Uniformes</SelectItem>
+                  <SelectItem value="Calzado">Calzado</SelectItem>
                 </SelectContent>
               </Select>
               <Select onValueChange={(value: ItemCondition | 'all') => setCondition(value)} defaultValue="all">

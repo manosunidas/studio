@@ -61,7 +61,7 @@
         },
         "category": {
           "type": "string",
-          "description": "The category of the material (e.g., 'Textbook', 'Uniform', 'Supplies')."
+          "description": "The category of the material (e.g., 'Textbook', 'Uniform', 'Supplies', 'Calzado')."
         },
         "gradeLevel": {
           "type": "string",

@@ -49,7 +49,7 @@ import { cn } from '@/lib/utils';
 const formSchema = z.object({
   title: z.string().min(1, 'El título es obligatorio'),
   description: z.string().min(1, 'La descripción es obligatoria'),
-  category: z.enum(['Ropa', 'Útiles', 'Tecnología', 'Libros', 'Uniformes'], { required_error: 'Selecciona una categoría' }),
+  category: z.enum(['Ropa', 'Útiles', 'Tecnología', 'Libros', 'Uniformes', 'Calzado'], { required_error: 'Selecciona una categoría' }),
   condition: z.enum(['Nuevo', 'Como nuevo', 'Usado'], { required_error: 'Selecciona la condición' }),
   gradeLevel: z.enum(['Preescolar', 'Primaria', 'Secundaria', 'Todos'], { required_error: 'Selecciona el nivel escolar' }),
   imageUrl: z.string().url('Por favor, introduce una URL de imagen válida.').min(1, 'La URL de la imagen es obligatoria.'),
@@ -145,6 +145,7 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
                           <SelectItem value="Tecnología">Tecnología</SelectItem>
                           <SelectItem value="Libros">Libros</SelectItem>
                           <SelectItem value="Uniformes">Uniformes</SelectItem>
+                          <SelectItem value="Calzado">Calzado</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
