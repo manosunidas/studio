@@ -142,9 +142,9 @@ export function DynamicHeaderContent() {
                   {user ? (
                     <div className="flex flex-col gap-4">
                       <Link href="/profile" className="flex items-center gap-4 text-2xl font-medium" onClick={() => setSheetOpen(false)}>
-                        <Avatar className="h-16 w-16">
+                        <Avatar className="h-24 w-24">
                             <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'Avatar'} />
-                            <AvatarFallback className="text-2xl">{getInitials(user.displayName)}</AvatarFallback>
+                            <AvatarFallback className="text-4xl">{getInitials(user.displayName)}</AvatarFallback>
                         </Avatar>
                         <div>
                              <p className="text-lg font-semibold">{user.displayName}</p>
