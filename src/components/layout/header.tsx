@@ -16,14 +16,14 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth as useFirebaseAuth } from '@/firebase';
+import { useUser } from '@/firebase';
 import { getAuth, signOut } from 'firebase/auth';
 
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [isSheetOpen, setSheetOpen] = useState(false);
-  const { user } = useFirebaseAuth();
+  const { user } = useUser();
   const { toast } = useToast();
   
   const isAdmin = user?.email === 'jhelenandreat@gmail.com';

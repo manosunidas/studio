@@ -9,7 +9,7 @@ import { Heart, User, MapPin, Tag, ArrowLeft, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useAuth, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import {
   AlertDialog,
@@ -27,7 +27,7 @@ export default function ItemPage() {
   const params = useParams();
   const id = params.id as string;
   const firestore = useFirestore();
-  const { user, isUserLoading } = useAuth();
+  const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 

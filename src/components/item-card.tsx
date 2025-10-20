@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Trash2 } from 'lucide-react';
-import { useAuth } from '@/firebase';
+import { useUser } from '@/firebase';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,7 +31,7 @@ interface ItemCardProps {
 }
 
 export function ItemCard({ item, showDelete = false, onDelete }: ItemCardProps) {
-  const { user } = useAuth();
+  const { user } = useUser();
   const isOwner = user?.email === item.postedBy;
 
   return (
