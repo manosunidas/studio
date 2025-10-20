@@ -118,11 +118,13 @@ export default function ItemPage() {
             sizes="(max-width: 768px) 100vw, 50vw"
             data-ai-hint={item.imageHint}
           />
-           {item.status === 'Asignado' && (
-             <div className="absolute top-4 left-4">
-              <Badge variant="destructive" className="text-lg">Asignado</Badge>
-             </div>
-           )}
+           <div className="absolute top-4 left-4">
+              {item.status === 'Asignado' ? (
+                <Badge variant="destructive" className="text-lg">Asignado</Badge>
+              ) : (
+                 <Badge variant="default" className="text-lg bg-green-600 hover:bg-green-700">Disponible</Badge>
+              )}
+           </div>
         </div>
         <div className="flex flex-col gap-6">
           <div>
@@ -213,7 +215,12 @@ export default function ItemPage() {
             </CardContent>
           </Card>
            
-           {!isAvailable && (
+           {!isAvailable && item.asignadoA && (
+            <div className="p-4 bg-yellow-100 dark:bg-yellow-900/50 border border-yellow-300 dark:border-yellow-700 rounded-lg text-center text-yellow-800 dark:text-yellow-200">
+              Artículo asignado a la solicitud con ID: <span className="font-mono text-sm bg-yellow-200 dark:bg-yellow-800 px-2 py-1 rounded">{item.asignadoA.substring(0, 8)}...</span>
+            </div>
+          )}
+           {!isAvailable && !item.asignadoA && (
             <div className="p-4 bg-yellow-100 dark:bg-yellow-900/50 border border-yellow-300 dark:border-yellow-700 rounded-lg text-center text-yellow-800 dark:text-yellow-200">
               Este artículo ya ha sido asignado.
             </div>

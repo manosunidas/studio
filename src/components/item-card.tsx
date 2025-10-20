@@ -47,11 +47,13 @@ export function ItemCard({ item, showDelete = false, onDelete }: ItemCardProps) 
             className="object-cover"
             data-ai-hint={item.imageHint}
           />
-           {item.status === 'Asignado' && (
-            <div className="absolute top-2 left-2">
-              <Badge variant="destructive">Asignado</Badge>
+           <div className="absolute top-2 left-2">
+              {item.status === 'Asignado' ? (
+                <Badge variant="destructive">Asignado</Badge>
+              ) : (
+                <Badge variant="default" className="bg-green-600 hover:bg-green-700">Disponible</Badge>
+              )}
             </div>
-           )}
         </div>
       </CardHeader>
       <CardContent className="flex-grow p-4">
