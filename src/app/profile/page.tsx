@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -303,7 +304,7 @@ function ItemRequests({ item, requestFilter = 'Pendiente' }: { item: Item, reque
   
   if (!requests || requests.length === 0) {
      if (requestFilter === 'Rechazada') {
-        return null; // Don't show anything if there are no rejected requests for an item
+        return null;
     }
     return <p className="text-sm text-center text-muted-foreground py-4">No hay solicitudes con el estado '{requestFilter}'.</p>;
   }
