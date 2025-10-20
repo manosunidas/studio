@@ -1,103 +1,41 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * @description Rules for the /users/{userId} collection.
-     * @path /users/{userId}
-     * @allow (create) - User with ID 'user123' can create their own profile if authenticated as 'user123'.
-     * @allow (get, update, delete) - User with ID 'user123' can read/write their profile if authenticated as 'user123'.
-     * @deny (create, get, update, delete) - User with ID 'user456' cannot access the profile of 'user123'.
-     * @principle Enforces document ownership for user profiles.
-     */
+    // Reglas para la colección 'users'
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false; // No listing of user documents.
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId);
-      allow delete: if isSignedIn() && isOwner(userId);
+      // Un usuario solo puede leer y escribir su propio documento
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    /**
-     * @description Rules for the /materials/{materialId} collection.
-     * @path /materials/{materialId}
-     * @allow (get, list) - Any user, authenticated or not, can read material listings.
-     * @allow (create) - User with ID 'user123' can create a material listing with postedBy: 'user123'.
-     * @allow (update, delete) - User with ID 'user123' can modify/delete their material listing if authenticated as 'user123'.
-     * @deny (create, update, delete) - User with ID 'user456' cannot modify/delete material listing of 'user123'.
-     * @principle Allows public read access but enforces ownership for writes.
-     */
+    // Reglas para la colección 'materials'
     match /materials/{materialId} {
-      function isSignedIn() {
-        return request.auth != null;
+      // Cualquiera puede leer (get) un material individual
+      allow get: if true;
+      
+      // Cualquiera puede listar los materiales
+      allow list: if true;
+
+      // Un usuario autenticado puede crear un material
+      allow create: if request.auth != null;
+
+      // El dueño del post puede borrarlo, O el admin.
+      allow delete: if request.auth != null && (resource.data.postedBy == request.auth.uid || request.auth.token.email == 'jhelenandreat@gmail.com');
+      
+      // Permitir actualización si:
+      // 1. El usuario es el dueño del artículo.
+      // 2. O, el usuario está actualizando *solamente* el contador de solicitudes.
+      allow update: if (request.auth != null && resource.data.postedBy == request.auth.uid) ||
+                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['solicitudes']));
+
+      // Subcolección 'requests'
+      match /requests/{requestId} {
+        // Cualquiera puede crear una solicitud
+        allow create: if true;
+        // Solo el dueño del material puede leer las solicitudes
+        allow read: if request.auth != null && get(/databases/$(database)/documents/materials/$(materialId)).data.postedBy == request.auth.uid;
       }
-
-      function isOwner() {
-        return request.auth.uid == resource.data.postedBy;
-      }
-
-       allow get: if true;
-       allow list: if true;
-       allow create: if isSignedIn() && request.resource.data.postedBy == request.auth.uid;
-       allow update: if isSignedIn() && isOwner();
-       allow delete: if isSignedIn() && isOwner();
-    }
-
-    /**
-     * @description Rules for the /transactions/{transactionId} collection.
-     * @path /transactions/{transactionId}
-     * @allow (get) - Donor or claimer can read the transaction.
-     * @allow (create) - Any authenticated user can create
-     * @deny (list) - No listing of transactions allowed without being involved as donor or claimer.
-     * @deny (update, delete) - Only the donor or claimer can modify/delete the transaction.
-     * @principle Restricts access to transactions to involved users.
-     */
-    match /transactions/{transactionId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isInvolved() {
-        return request.auth.uid == resource.data.donorId || request.auth.uid == resource.data.claimerId;
-      }
-
-       allow get: if isSignedIn() && isInvolved();
-       allow list: if false;
-       allow create: if isSignedIn();
-       allow update: if isSignedIn() && isInvolved();
-       allow delete: if isSignedIn() && isInvolved();
-    }
-
-    /**
-     * @description Rules for the /suggestions/{suggestionId} collection.
-     * @path /suggestions/{suggestionId}
-     * @allow (get) - Only the user for whom the suggestion is made can read it.
-     * @deny (list) - No listing of suggestions.
-     * @deny (create, update, delete) - Only the system can create, modify, or delete suggestions.
-     * @principle Restricts access to suggestions to the intended user.
-     */
-    match /suggestions/{suggestionId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner() {
-        return request.auth.uid == resource.data.userId;
-      }
-
-       allow get: if isSignedIn() && isOwner();
-       allow list: if false;
-       allow create: if false;
-       allow update: if false;
-       allow delete: if false;
     }
   }
 }
