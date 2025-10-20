@@ -1,40 +1,20 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Reglas para la colección 'users'
     match /users/{userId} {
-      // Un usuario solo puede leer y escribir su propio documento
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Reglas para la colección 'materials'
     match /materials/{materialId} {
-      // Cualquiera puede leer (get) un material individual
       allow get: if true;
-      
-      // Cualquiera puede listar los materiales
-      allow list: if true;
-
-      // Un usuario autenticado puede crear un material
+      allow list: if request.auth != null && request.auth.token.email == 'jhelenandreat@gmail.com';
       allow create: if request.auth != null;
+      allow update: if request.auth != null && (request.auth.uid == resource.data.postedBy || (request.resource.data.solicitudes == resource.data.solicitudes + 1 && request.resource.data.status == 'Disponible'));
+      allow delete: if request.auth != null && request.auth.uid == resource.data.postedBy;
 
-      // El dueño del post puede borrarlo, O el admin.
-      allow delete: if request.auth != null && (resource.data.postedBy == request.auth.uid || request.auth.token.email == 'jhelenandreat@gmail.com');
-      
-      // Permitir actualización si:
-      // 1. El usuario es el dueño del artículo.
-      // 2. O, el usuario está actualizando *solamente* el contador de solicitudes.
-      allow update: if (request.auth != null && resource.data.postedBy == request.auth.uid) ||
-                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['solicitudes']));
-
-      // Subcolección 'requests'
       match /requests/{requestId} {
-        // Cualquiera puede crear una solicitud
-        allow create: if true;
-        // Solo el dueño del material puede leer las solicitudes
         allow read: if request.auth != null && get(/databases/$(database)/documents/materials/$(materialId)).data.postedBy == request.auth.uid;
+        allow create: if true;
       }
     }
   }
