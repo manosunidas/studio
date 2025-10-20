@@ -46,9 +46,6 @@ export async function createRequest(input: CreateRequestInput): Promise<CreateRe
   try {
     // Get firestore instance inside the function to ensure initialization is complete.
     // This is critical if the admin app hasn't been initialized at the module level.
-     if (admin.apps.length === 0) {
-        admin.initializeApp();
-    }
     const firestore = admin.firestore();
 
     // Validate input against the Zod schema
