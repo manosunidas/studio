@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { DynamicHeaderContent } from './dynamic-header-content';
+import { Suspense } from 'react';
+import { Skeleton } from '../ui/skeleton';
 
 
 export function Header() {
@@ -14,7 +16,15 @@ export function Header() {
             <span className="hidden sm:inline">Manos Unidas</span>
         </Link>
         
-        <DynamicHeaderContent />
+        <Suspense fallback={
+          <div className="flex items-center gap-4">
+              <Skeleton className="w-24 h-8 rounded-md md:w-32" />
+              <Skeleton className="w-12 h-12 rounded-full hidden md:block" />
+              <Skeleton className="w-8 h-8 rounded-md md:hidden" />
+          </div>
+        }>
+          <DynamicHeaderContent />
+        </Suspense>
       </div>
     </header>
   );
