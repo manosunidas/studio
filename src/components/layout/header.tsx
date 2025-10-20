@@ -32,7 +32,6 @@ export function Header() {
     { href: '/', label: 'Inicio' },
     ...(user ? [{ href: '/profile', label: 'Mis Artículos' }] : []),
     ...(isAdmin ? [{ href: '/admin', label: 'Admin' }] : []),
-    { href: '/post-item', label: 'Publicar Artículo' },
   ];
 
   const handleLogout = async () => {
@@ -86,9 +85,6 @@ export function Header() {
                 <Link href="/admin">Admin Panel</Link>
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem asChild>
-              <Link href="/post-item">Publicar Artículo</Link>
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
           </DropdownMenuContent>
