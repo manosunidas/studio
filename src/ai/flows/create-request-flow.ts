@@ -12,6 +12,21 @@ import { z } from 'zod';
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
+// Initialize Firebase Admin SDK idempotently at the module level.
+if (admin.apps.length === 0) {
+  try {
+    // When deployed to App Hosting, the SDK is automatically initialized with the project's credentials.
+    admin.initializeApp();
+  } catch (e: any) {
+    console.error("Critical: Firebase Admin SDK initialization failed.", e);
+    // In a real-world scenario, you might want to throw this error
+    // to prevent the application from running in a broken state.
+  }
+}
+
+const firestore = admin.firestore();
+
+
 const CreateRequestInputSchema = z.object({
   materialId: z.string().describe('The ID of the material being requested.'),
   nombreCompleto: z.string().describe('The full name of the requester.'),
@@ -28,25 +43,8 @@ const CreateRequestOutputSchema = z.object({
 export type CreateRequestOutput = z.infer<typeof CreateRequestOutputSchema>;
 
 
-// Helper function to initialize Firebase Admin SDK idempotently
-function initializeFirebaseAdmin() {
-    if (admin.apps.length === 0) {
-        // When deployed to App Hosting, the SDK is automatically initialized.
-        // For local development, it might need GOOGLE_APPLICATION_CREDENTIALS.
-        try {
-            admin.initializeApp();
-        } catch (e: any) {
-            console.error("Firebase Admin SDK initialization failed:", e.message);
-        }
-    }
-    return admin.firestore();
-}
-
-
 export async function createRequest(input: CreateRequestInput): Promise<CreateRequestOutput> {
   try {
-    const firestore = initializeFirebaseAdmin();
-
     // Validate input against the Zod schema
     const validatedInput = CreateRequestInputSchema.parse(input);
 
@@ -89,6 +87,7 @@ export async function createRequest(input: CreateRequestInput): Promise<CreateRe
             message: 'Datos de entrada inválidos: ' + error.errors.map(e => e.message).join(', ')
         }
     }
+    // Return a generic message for other errors
     return {
       success: false,
       message: error.message || 'Ocurrió un error al procesar la solicitud.',
