@@ -87,7 +87,7 @@ export default function PostItemPage() {
           condition: data.condition,
           gradeLevel: data.gradeLevel,
           imageUrl: imageUrl,
-          imageHint: 'school supplies',
+          imageHint: 'school supplies', // You can create a more dynamic hint later
           postedBy: user.email,
           postedByName: user.displayName,
           datePosted: serverTimestamp(),
@@ -100,8 +100,19 @@ export default function PostItemPage() {
           description: 'Tu artículo ahora está visible para la comunidad.',
         });
         reset();
-        router.push('/');
+        setIsSubmitting(false);
+        router.push('/profile');
       };
+
+       reader.onerror = (error) => {
+          console.error("FileReader error:", error);
+           toast({
+            title: 'Error al leer el archivo',
+            description: 'No se pudo cargar la imagen. Inténtalo de nuevo.',
+            variant: 'destructive',
+          });
+          setIsSubmitting(false);
+      }
 
       reader.readAsDataURL(file);
 
@@ -112,7 +123,6 @@ export default function PostItemPage() {
         description: 'Hubo un problema al crear el artículo. Inténtalo de nuevo.',
         variant: 'destructive',
       });
-    } finally {
       setIsSubmitting(false);
     }
   };

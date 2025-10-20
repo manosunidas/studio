@@ -33,30 +33,39 @@ export default function ProfilePage() {
   const userItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.email) return null;
     return query(collection(firestore, 'materials'), where('postedBy', '==', user.email));
-  }, [firestore, user]);
+  }, [firestore, user?.email]);
 
   const reservedItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.email) return null;
     return query(collection(firestore, 'materials'), where('reservedBy', '==', user.email));
-  }, [firestore, user]);
+  }, [firestore, user?.email]);
 
   const { data: userItems, isLoading: userItemsLoading } = useCollection<Item>(userItemsQuery);
   const { data: reservedItems, isLoading: reservedItemsLoading } = useCollection<Item>(reservedItemsQuery);
 
   const handleDeleteItem = async (itemId: string) => {
     if (!firestore) return;
-    await deleteDoc(doc(firestore, 'materials', itemId));
-    toast({
-      title: 'Artículo eliminado',
-      description: 'Tu publicación ha sido eliminada con éxito.'
-    })
+    try {
+      await deleteDoc(doc(firestore, 'materials', itemId));
+      toast({
+        title: 'Artículo eliminado',
+        description: 'Tu publicación ha sido eliminada con éxito.'
+      });
+    } catch (error) {
+      console.error("Error deleting item:", error);
+      toast({
+        title: 'Error al eliminar',
+        description: 'No se pudo eliminar el artículo. Inténtalo de nuevo.',
+        variant: 'destructive',
+      });
+    }
   }
 
   if (isUserLoading || !user) {
     return <div className="container text-center py-20">Cargando perfil...</div>;
   }
   
-  const getInitials = (name: string | null) => {
+  const getInitials = (name: string | null | undefined) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
@@ -82,7 +91,7 @@ export default function ProfilePage() {
              </div>
           </div>
         </div>
-        <Button variant="outline" className="ml-auto">Editar Perfil</Button>
+        <Button variant="outline" className="ml-auto" onClick={() => toast({ title: 'Próximamente', description: '¡Pronto podrás editar tu perfil!'})}>Editar Perfil</Button>
       </div>
 
       <Tabs defaultValue="listings">
@@ -98,12 +107,14 @@ export default function ProfilePage() {
                 Aquí puedes ver y gestionar los artículos que has compartido con la comunidad.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {userItemsLoading && <p>Cargando tus artículos...</p>}
+            <CardContent>
+              {userItemsLoading && <p className="text-center">Cargando tus artículos...</p>}
               {!userItemsLoading && userItems && userItems.length > 0 ? (
-                userItems.map(item => <ItemCard key={item.id} item={item} showDelete={true} onDelete={handleDeleteItem} />)
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {userItems.map(item => <ItemCard key={item.id} item={item} showDelete={true} onDelete={handleDeleteItem} />)}
+                </div>
               ) : (
-                <p>Aún no has publicado ningún artículo.</p>
+                !userItemsLoading && <p className="text-center text-muted-foreground">Aún no has publicado ningún artículo.</p>
               )}
             </CardContent>
           </Card>
@@ -116,12 +127,14 @@ export default function ProfilePage() {
                 Este es un historial de los artículos que has reservado a través de la plataforma.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {reservedItemsLoading && <p>Cargando tus reservas...</p>}
+            <CardContent>
+              {reservedItemsLoading && <p className="text-center">Cargando tus reservas...</p>}
               {!reservedItemsLoading && reservedItems && reservedItems.length > 0 ? (
-                reservedItems.map(item => <ItemCard key={item.id} item={item} />)
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {reservedItems.map(item => <ItemCard key={item.id} item={item} />)}
+                </div>
               ) : (
-                <p>Aún no has reservado ningún artículo.</p>
+                !reservedItemsLoading && <p className="text-center text-muted-foreground">Aún no has reservado ningún artículo.</p>
               )}
             </CardContent>
           </Card>

@@ -11,6 +11,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -89,7 +90,7 @@ export default function AdminPage() {
           condition: data.condition,
           gradeLevel: data.gradeLevel,
           imageUrl: imageUrl,
-          imageHint: 'school supplies',
+          imageHint: 'school supplies', // You can create a more dynamic hint later
           postedBy: user.email,
           postedByName: user.displayName,
           datePosted: serverTimestamp(),
@@ -102,7 +103,18 @@ export default function AdminPage() {
           description: 'El artículo ahora está visible para la comunidad.',
         });
         reset(); // Reset form fields
+        setIsSubmitting(false);
       };
+
+      reader.onerror = (error) => {
+          console.error("FileReader error:", error);
+           toast({
+            title: 'Error al leer el archivo',
+            description: 'No se pudo cargar la imagen. Inténtalo de nuevo.',
+            variant: 'destructive',
+          });
+          setIsSubmitting(false);
+      }
 
       reader.readAsDataURL(file);
 
@@ -113,12 +125,11 @@ export default function AdminPage() {
         description: 'Hubo un problema al crear el artículo. Inténtalo de nuevo.',
         variant: 'destructive',
       });
-    } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (isUserLoading || !user || user.email !== 'jhelenandreat@gmail.com') {
+  if (isUserLoading || (user && user.email !== 'jhelenandreat@gmail.com')) {
     return <div className="container text-center py-20">Cargando panel de administración...</div>;
   }
 
