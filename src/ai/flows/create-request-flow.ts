@@ -12,13 +12,18 @@ import { z } from 'zod';
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
-// Initialize Firebase Admin SDK idempotently at the module level.
+// Initialize Firebase Admin SDK idempotently.
+// This block ensures that initialization happens only once.
 if (admin.apps.length === 0) {
   try {
-    // When deployed to App Hosting, the SDK is automatically initialized with the project's credentials.
-    admin.initializeApp();
+    // When deployed to App Hosting, the SDK is automatically initialized.
+    // In other environments, you might need to provide credentials explicitly.
+    // We are explicitly providing the project ID to avoid auto-detection issues.
+    admin.initializeApp({
+      projectId: 'studio-1933739816-d9066'
+    });
   } catch (e: any) {
-    console.error("Critical: Firebase Admin SDK initialization failed.", e);
+    console.error("Firebase Admin SDK initialization failed.", e);
     // In a real-world scenario, you might want to throw this error
     // to prevent the application from running in a broken state.
   }
