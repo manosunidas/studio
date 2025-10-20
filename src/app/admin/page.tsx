@@ -35,7 +35,7 @@ const formSchema = z.object({
   description: z.string().min(1, 'La descripción es obligatoria'),
   category: z.enum(['Ropa', 'Útiles', 'Tecnología'], { required_error: 'Selecciona una categoría' }),
   condition: z.enum(['Nuevo', 'Como nuevo', 'Usado'], { required_error: 'Selecciona la condición' }),
-  gradeLevel: z.enum(['Primaria', 'Secundaria', 'Bachillerato', 'Todos'], { required_error: 'Selecciona el nivel escolar' }),
+  gradeLevel: z.enum(['Preescolar', 'Primaria', 'Secundaria', 'Todos'], { required_error: 'Selecciona el nivel escolar' }),
   picture: z.any().refine(files => files?.length > 0, 'La foto es obligatoria.'),
 });
 
@@ -222,9 +222,9 @@ export default function AdminPage() {
                           <SelectValue placeholder="Selecciona el nivel" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="Preescolar">Preescolar</SelectItem>
                           <SelectItem value="Primaria">Primaria</SelectItem>
                           <SelectItem value="Secundaria">Secundaria</SelectItem>
-                          <SelectItem value="Bachillerato">Bachillerato</SelectItem>
                           <SelectItem value="Todos">Todos</SelectItem>
                         </SelectContent>
                       </Select>
