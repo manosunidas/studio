@@ -568,7 +568,6 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
 
     const assignedItems = allAdminItems?.filter(item => item.status === 'Asignado') || [];
     const pendingItems = allAdminItems?.filter(item => item.status === 'Disponible' && item.solicitudes > 0) || [];
-    const rejectedItems = allAdminItems?.filter(item => item.solicitudes > 0) || [];
     
     const renderAccordion = (items: Item[], requestFilter: Solicitud['status'] | 'all') => {
         if (items.length === 0) {
@@ -577,10 +576,6 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
         return (
             <Accordion type="single" collapsible className="w-full">
                 {items.map(item => {
-                    const assignedRequest = requestFilter === 'all' && item.status === 'Asignado' 
-                        ? assignedItems.find(i => i.id === item.id)?.asignadoA || 'N/A'
-                        : 'N/A';
-                    
                     return (
                         <AccordionItem value={item.id} key={item.id}>
                             <AccordionTrigger>
@@ -614,10 +609,9 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
     
     return (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="requests">Pendientes ({pendingItems.length})</TabsTrigger>
                 <TabsTrigger value="assigned">Asignados ({assignedItems.length})</TabsTrigger>
-                <TabsTrigger value="rejected">Rechazadas</TabsTrigger>
             </TabsList>
             <TabsContent value="requests">
                 <Card>
@@ -638,17 +632,6 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
                     </CardHeader>
                     <CardContent>
                         {renderAccordion(assignedItems, 'all')}
-                    </CardContent>
-                </Card>
-            </TabsContent>
-            <TabsContent value="rejected">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Solicitudes Rechazadas</CardTitle>
-                        <CardDescription>Historial de solicitudes que han sido rechazadas.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                       {renderAccordion(rejectedItems, 'Rechazada')}
                     </CardContent>
                 </Card>
             </TabsContent>
@@ -798,5 +781,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    
