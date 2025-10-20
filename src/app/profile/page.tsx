@@ -31,9 +31,9 @@ export default function ProfilePage() {
   }, [user, isUserLoading, router, toast]);
 
   const userItemsQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.email) return null;
-    return query(collection(firestore, 'materials'), where('postedBy', '==', user.email));
-  }, [firestore, user?.email]);
+    if (!firestore || !user?.uid) return null;
+    return query(collection(firestore, 'materials'), where('postedBy', '==', user.uid));
+  }, [firestore, user?.uid]);
 
   const reservedItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.email) return null;

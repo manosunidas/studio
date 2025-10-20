@@ -82,6 +82,18 @@
           "type": "string",
           "description": "The email of the user who has reserved the material. Null if not reserved."
         },
+        "reserverFullName": {
+          "type": "string",
+          "description": "Full name of the person who reserved the item."
+        },
+        "reserverAddress": {
+          "type": "string",
+          "description": "Address of the person who reserved the item."
+        },
+        "reserverPhone": {
+          "type": "string",
+          "description": "Phone number of the person who reserved the item."
+        },
         "datePosted": {
           "type": "string",
           "description": "The date and time when the material was posted.",

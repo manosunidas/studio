@@ -32,7 +32,7 @@ interface ItemCardProps {
 
 export function ItemCard({ item, showDelete = false, onDelete }: ItemCardProps) {
   const { user } = useUser();
-  const isOwner = user?.email === item.postedBy;
+  const isOwner = user?.uid === item.postedBy;
 
   return (
     <Card className="flex flex-col h-full overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">

@@ -3,6 +3,10 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter, useParams } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Heart, User, MapPin, Tag, ArrowLeft, Mail } from 'lucide-react';
@@ -11,6 +15,18 @@ import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
 import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +39,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
+const reservationSchema = z.object({
+  fullName: z.string().min(3, 'El nombre completo es obligatorio'),
+  address: z.string().min(5, 'La dirección es obligatoria'),
+  phone: z.string().min(7, 'El teléfono es obligatorio'),
+});
+type ReservationFormData = z.infer<typeof reservationSchema>;
+
+
 export default function ItemPage() {
   const params = useParams();
   const id = params.id as string;
@@ -30,6 +54,11 @@ export default function ItemPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
+  const [isReservationDialogOpen, setReservationDialogOpen] = useState(false);
+
+  const { register, handleSubmit, formState: { errors } } = useForm<ReservationFormData>({
+    resolver: zodResolver(reservationSchema)
+  });
 
   const itemRef = useMemoFirebase(() => {
     if (!firestore || !id) return null;
@@ -38,28 +67,35 @@ export default function ItemPage() {
 
   const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
 
-  const handleReserve = async () => {
-    if (!item || !itemRef) return;
-     if (!user) {
-      toast({
-        title: 'Inicia sesión para reservar',
-        description: 'Debes iniciar sesión para poder reservar un artículo.',
-        variant: 'destructive',
-      });
-      router.push('/login');
-      return;
-    }
-    const updatedData = { isReserved: true, reservedBy: user.email, status: 'Reservado' as const };
+  const handleReserve = async (data: ReservationFormData) => {
+    if (!item || !itemRef || !user) return;
+    
+    const updatedData = { 
+      isReserved: true, 
+      reservedBy: user.email, 
+      status: 'Reservado' as const,
+      reserverFullName: data.fullName,
+      reserverAddress: data.address,
+      reserverPhone: data.phone,
+    };
     await updateDoc(itemRef, updatedData);
     toast({
         title: '¡Artículo reservado!',
         description: 'Has reservado este artículo con éxito.',
     });
+    setReservationDialogOpen(false);
   };
   
   const handleCancelReservation = async () => {
     if (!item || !itemRef) return;
-    const updatedData = { isReserved: false, reservedBy: '', status: 'Disponible' as const };
+    const updatedData = { 
+      isReserved: false, 
+      reservedBy: '', 
+      status: 'Disponible' as const,
+      reserverFullName: '',
+      reserverAddress: '',
+      reserverPhone: '',
+    };
     await updateDoc(itemRef, updatedData);
      toast({
         title: 'Reserva cancelada',
@@ -71,8 +107,8 @@ export default function ItemPage() {
     if(!item || !itemRef) return;
     await deleteDoc(itemRef);
     toast({
-        title: 'Artículo eliminado',
-        description: 'El artículo ha sido eliminado de la plataforma.',
+        title: 'Artículo entregado',
+        description: 'El artículo ha sido marcado como entregado y eliminado de la plataforma.',
     });
     router.push('/profile');
   }
@@ -80,9 +116,10 @@ export default function ItemPage() {
   if (isUserLoading || isItemLoading || !item) {
     return <div className="container text-center py-20">Cargando artículo...</div>;
   }
-
-  const isOwner = user?.email === item.postedBy;
-  const canReserve = !item.isReserved && !isOwner;
+  
+  const isAdmin = user?.email === 'jhelenandreat@gmail.com';
+  const isOwner = user?.uid === item.postedBy;
+  const canReserve = !item.isReserved && !isOwner && !isAdmin;
   const hasReserved = item.isReserved && item.reservedBy === user?.email;
   const isReservedByOther = item.isReserved && item.reservedBy !== user?.email && !isOwner;
 
@@ -118,17 +155,61 @@ export default function ItemPage() {
                 <h1 className="text-3xl md:text-4xl font-bold font-headline">{item.title}</h1>
                 <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
                   {user && (
-                  <Button onClick={() => router.push('/profile')} variant="outline">
+                  <Button onClick={() => router.back()} variant="outline">
                     <ArrowLeft className="mr-2 h-5 w-5" />
-                    Volver al Perfil
+                    Volver
                   </Button>
                   )}
-                  {canReserve && (
-                    <Button onClick={handleReserve} size="lg">
-                      <Heart className="mr-2 h-5 w-5" />
-                      Reservar
-                    </Button>
-                  )}
+                   {canReserve && (
+                      <Dialog open={isReservationDialogOpen} onOpenChange={setReservationDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button size="lg" onClick={() => {
+                             if (!user) {
+                                toast({
+                                  title: 'Inicia sesión para reservar',
+                                  description: 'Debes iniciar sesión para poder reservar un artículo.',
+                                  variant: 'destructive',
+                                });
+                                router.push('/login');
+                                return;
+                              }
+                          }}>
+                            <Heart className="mr-2 h-5 w-5" />
+                            Reservar
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                          <form onSubmit={handleSubmit(handleReserve)}>
+                            <DialogHeader>
+                              <DialogTitle>Confirmar Reserva</DialogTitle>
+                              <DialogDescription>
+                                Por favor, completa tus datos para coordinar la entrega.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
+                              <div className="grid gap-2">
+                                <Label htmlFor="fullName">Nombre Completo</Label>
+                                <Input id="fullName" {...register('fullName')} />
+                                {errors.fullName && <p className="text-sm text-destructive">{errors.fullName.message}</p>}
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor="address">Dirección</Label>
+                                <Input id="address" {...register('address')} />
+                                 {errors.address && <p className="text-sm text-destructive">{errors.address.message}</p>}
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor="phone">Teléfono</Label>
+                                <Input id="phone" {...register('phone')} />
+                                 {errors.phone && <p className="text-sm text-destructive">{errors.phone.message}</p>}
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <Button type="submit">Confirmar Reserva</Button>
+                            </DialogFooter>
+                          </form>
+                        </DialogContent>
+                      </Dialog>
+                    )}
                   {hasReserved && (
                      <Button onClick={handleCancelReservation} size="lg" variant="destructive">
                       Cancelar Reserva
@@ -137,7 +218,7 @@ export default function ItemPage() {
                 </div>
             </div>
             <p className="text-lg text-muted-foreground mt-2">
-              Publicado por <span className="font-semibold text-primary">{item.postedByName || item.postedBy.split('@')[0]}</span>
+              Publicado por <span className="font-semibold text-primary">{item.postedByName || 'Usuario'}</span>
             </p>
           </div>
 
@@ -178,34 +259,27 @@ export default function ItemPage() {
               Este artículo ya ha sido reservado por otro usuario.
             </div>
           )}
-
-           {contactEmail && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Coordinar Entrega</CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-4">
-                  <p>Ponte en contacto para coordinar la recogida del artículo.</p>
-                   <Button asChild variant="outline">
-                    <a href={`mailto:${contactEmail}`}>
-                      <Mail className="mr-2 h-4 w-4" />
-                      Contactar por correo: {contactEmail}
-                    </a>
-                  </Button>
-                </CardContent>
-              </Card>
+          
+          {(isOwner || hasReserved) && item.isReserved && (
+            <Card>
+              <CardHeader><CardTitle>Información de la Reserva</CardTitle></CardHeader>
+              <CardContent className="grid gap-2 text-sm">
+                 <p><strong>Reservado por:</strong> {item.reserverFullName}</p>
+                 <p><strong>Dirección:</strong> {item.reserverAddress}</p>
+                 <p><strong>Teléfono:</strong> {item.reserverPhone}</p>
+                 <p><strong>Email de contacto:</strong> {item.reservedBy}</p>
+              </CardContent>
+            </Card>
            )}
 
-           {isOwner && (
+
+           {isOwner && item.isReserved && (
              <div className="p-4 bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-700 rounded-lg text-center text-blue-800 dark:text-blue-200 flex items-center justify-between">
-              <div>
-                <p className="font-bold">Eres el propietario de este artículo.</p>
-                {item.isReserved && <p className="text-sm">Reservado por: {item.reservedBy}</p>}
-              </div>
+              <p className="font-bold">Tu artículo ha sido reservado.</p>
               
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive">Marcar como Entregado</Button>
+                  <Button variant="default">Marcar como Entregado</Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>

@@ -20,6 +20,9 @@ export interface Item {
   datePosted: Timestamp;
   isReserved: boolean;
   reservedBy?: string; // User's email
+  reserverFullName?: string;
+  reserverAddress?: string;
+  reserverPhone?: string;
   status: ItemStatus;
 };
 
