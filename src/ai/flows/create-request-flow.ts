@@ -8,15 +8,20 @@
  */
 
 import { z } from 'zod';
-import { getFirestore, doc, collection, runTransaction, serverTimestamp } from 'firebase/firestore';
-import { initializeApp, getApps } from 'firebase/app';
-import { firebaseConfig } from '@/firebase/config';
+import * as admin from 'firebase-admin';
 
-// Ensure Firebase is initialized on the server
-if (!getApps().length) {
-  initializeApp(firebaseConfig);
+// Helper function to initialize Firebase Admin SDK
+function initializeAdminApp() {
+  if (admin.apps.length > 0) {
+    return admin.app();
+  }
+
+  // Firebase App Hosting provides GOOGLE_CLOUD_PROJECT, which is used by default.
+  // The service account is also automatically discovered.
+  admin.initializeApp();
+
+  return admin.app();
 }
-const firestore = getFirestore();
 
 const CreateRequestInputSchema = z.object({
   materialId: z.string().describe('The ID of the material being requested.'),
@@ -35,37 +40,42 @@ export type CreateRequestOutput = z.infer<typeof CreateRequestOutputSchema>;
 
 export async function createRequest(input: CreateRequestInput): Promise<CreateRequestOutput> {
   try {
+    const adminApp = initializeAdminApp();
+    const firestore = admin.firestore();
+
     // Validate input against the Zod schema
     const validatedInput = CreateRequestInputSchema.parse(input);
 
-    const materialRef = doc(firestore, 'materials', validatedInput.materialId);
-    const requestsCollectionRef = collection(firestore, 'materials', validatedInput.materialId, 'requests');
-
-    const newRequestData = {
-      materialId: validatedInput.materialId,
-      nombreCompleto: validatedInput.nombreCompleto,
-      direccion: validatedInput.direccion,
-      telefono: validatedInput.telefono,
-      fechaSolicitud: serverTimestamp(),
-      status: 'Pendiente' as const,
-    };
+    const materialRef = firestore.collection('materials').doc(validatedInput.materialId);
+    const requestsCollectionRef = materialRef.collection('requests');
 
     let newRequestId: string | undefined;
 
-    await runTransaction(firestore, async (transaction) => {
+    await firestore.runTransaction(async (transaction) => {
       const materialDoc = await transaction.get(materialRef);
-      if (!materialDoc.exists()) {
+      if (!materialDoc.exists) {
         throw new Error('El artículo ya no existe.');
       }
-      const currentSolicitudes = materialDoc.data().solicitudes || 0;
-
-      // Add new request
-      const newRequestRef = doc(requestsCollectionRef);
+      
+      const newRequestRef = requestsCollectionRef.doc();
       newRequestId = newRequestRef.id;
-      transaction.set(newRequestRef, newRequestData);
+      
+      const newRequestData = {
+        materialId: validatedInput.materialId,
+        nombreCompleto: validatedInput.nombreCompleto,
+        direccion: validatedInput.direccion,
+        telefono: validatedInput.telefono,
+        fechaSolicitud: admin.firestore.FieldValue.serverTimestamp(),
+        status: 'Pendiente' as const,
+        id: newRequestId, // Store the ID within the document
+      };
 
-      // Update request count on material
-      transaction.update(materialRef, { solicitudes: currentSolicitudes + 1 });
+      transaction.set(newRequestRef, newRequestData);
+      
+      // Use FieldValue to atomically increment the counter
+      transaction.update(materialRef, { 
+          solicitudes: admin.firestore.FieldValue.increment(1) 
+      });
     });
 
     if (!newRequestId) {
@@ -78,7 +88,7 @@ export async function createRequest(input: CreateRequestInput): Promise<CreateRe
       message: '¡Solicitud enviada con éxito!',
     };
   } catch (error: any) {
-    console.error('Error in createRequest action:', error);
+    console.error('Error in createRequest server action:', error);
     // Handle Zod validation errors
     if (error instanceof z.ZodError) {
         return {
