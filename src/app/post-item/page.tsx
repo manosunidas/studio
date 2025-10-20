@@ -117,7 +117,7 @@ export default function PostItemPage() {
     }
   };
 
-  if(isUserLoading || !user) {
+  if (isUserLoading || !user) {
     return <div className="container text-center py-20">Cargando...</div>;
   }
 

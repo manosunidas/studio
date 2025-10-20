@@ -52,7 +52,7 @@ export default function ProfilePage() {
     })
   }
 
-  if (isUserLoading || userItemsLoading || reservedItemsLoading || !user) {
+  if (isUserLoading || !user) {
     return <div className="container text-center py-20">Cargando perfil...</div>;
   }
   
@@ -99,7 +99,8 @@ export default function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {userItems && userItems.length > 0 ? (
+              {userItemsLoading && <p>Cargando tus artículos...</p>}
+              {!userItemsLoading && userItems && userItems.length > 0 ? (
                 userItems.map(item => <ItemCard key={item.id} item={item} showDelete={true} onDelete={handleDeleteItem} />)
               ) : (
                 <p>Aún no has publicado ningún artículo.</p>
@@ -116,7 +117,8 @@ export default function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {reservedItems && reservedItems.length > 0 ? (
+              {reservedItemsLoading && <p>Cargando tus reservas...</p>}
+              {!reservedItemsLoading && reservedItems && reservedItems.length > 0 ? (
                 reservedItems.map(item => <ItemCard key={item.id} item={item} />)
               ) : (
                 <p>Aún no has reservado ningún artículo.</p>
