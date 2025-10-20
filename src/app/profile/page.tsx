@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -30,7 +29,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, where, doc, deleteDoc, serverTimestamp, addDoc, updateDoc, runTransaction, increment } from 'firebase/firestore';
+import { collection, query, where, doc, deleteDoc, serverTimestamp, addDoc, updateDoc, runTransaction, increment, collectionGroup, getDocs } from 'firebase/firestore';
 import type { Item, Solicitud } from '@/lib/types';
 import {
   AlertDialog,
@@ -213,19 +212,9 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
 }
 
 
-function ItemRequests({ item, requestFilter = 'Pendiente' }: { item: Item, requestFilter?: Solicitud['status'] }) {
+function ItemRequests({ item, requests, onAction }: { item: Item, requests: Solicitud[], onAction: () => void }) {
   const firestore = useFirestore();
   const { toast } = useToast();
-  
-  const requestsQuery = useMemoFirebase(() => {
-    if (!firestore || !item) return null;
-    return query(
-      collection(firestore, 'materials', item.id, 'requests'),
-      where('status', '==', requestFilter)
-    );
-  }, [firestore, item.id, requestFilter]);
-
-  const { data: requests, isLoading: requestsLoading, error } = useCollection<Solicitud>(requestsQuery);
 
   const assignItem = async (solicitudId: string) => {
     if (!firestore || !item) return;
@@ -241,6 +230,7 @@ function ItemRequests({ item, requestFilter = 'Pendiente' }: { item: Item, reque
           title: 'Artículo Asignado',
           description: `El artículo ha sido asignado a la solicitud ${solicitudId.substring(0,5)}...`,
         });
+        onAction();
     }).catch((serverError) => {
         const permissionError = new FirestorePermissionError({
             path: itemRef.path,
@@ -265,6 +255,7 @@ function ItemRequests({ item, requestFilter = 'Pendiente' }: { item: Item, reque
           title: 'Artículo Desasignado',
           description: 'El artículo está disponible nuevamente.',
         });
+        onAction();
     }).catch((serverError) => {
         const permissionError = new FirestorePermissionError({
             path: itemRef.path,
@@ -286,6 +277,7 @@ function ItemRequests({ item, requestFilter = 'Pendiente' }: { item: Item, reque
             title: 'Solicitud Rechazada',
             description: 'La solicitud ha sido marcada como rechazada.'
         });
+        onAction();
     }).catch((e) => {
         const permissionError = new FirestorePermissionError({
             path: requestRef.path,
@@ -295,18 +287,9 @@ function ItemRequests({ item, requestFilter = 'Pendiente' }: { item: Item, reque
         errorEmitter.emit('permission-error', permissionError);
     });
   };
-
-  if (requestsLoading) return <p>Cargando solicitudes...</p>;
-  
-  if (error) {
-    return <p className="text-sm text-center text-destructive py-4">Error al cargar las solicitudes. Verifica las reglas de seguridad.</p>
-  }
   
   if (!requests || requests.length === 0) {
-     if (requestFilter === 'Rechazada') {
-        return null;
-    }
-    return <p className="text-sm text-center text-muted-foreground py-4">No hay solicitudes con el estado '{requestFilter}'.</p>;
+    return <p className="text-sm text-center text-muted-foreground py-4">No hay solicitudes en esta categoría.</p>;
   }
 
   return (
@@ -389,145 +372,127 @@ function ItemRequests({ item, requestFilter = 'Pendiente' }: { item: Item, reque
   );
 }
 
-function PendingRequestsDashboard({ allAdminItems, isLoading, error }: { allAdminItems: Item[] | null, isLoading: boolean, error: Error | null }) {
-    if (isLoading) return <p className="text-center py-8">Cargando artículos...</p>;
-    if (error) return <p className="text-center text-destructive py-8">Error al cargar los artículos. Es posible que no tengas permisos para verlos.</p>;
+function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { allAdminItems: Item[] | null, isLoading: boolean, error: Error | null, onAction: () => void }) {
+    const [activeTab, setActiveTab] = useState('requests');
+    const firestore = useFirestore();
+    const { user } = useUser();
+    
+    const allRequestsQuery = useMemoFirebase(() => {
+        if (!firestore || !user?.uid) return null;
+        return query(collectionGroup(firestore, 'requests'));
+    }, [firestore, user?.uid, onAction]);
 
-    const itemsWithRequests = allAdminItems?.filter(item => (item.solicitudes || 0) > 0 && item.status === 'Disponible') || [];
+    const { data: allRequests, isLoading: requestsLoading, error: requestsError } = useCollection<Solicitud>(allRequestsQuery);
 
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Solicitudes Pendientes</CardTitle>
-                <CardDescription>Aquí puedes ver los artículos con solicitudes pendientes de revisión.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {itemsWithRequests.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">No hay artículos con solicitudes pendientes.</p>
-                ) : (
-                    <Accordion type="single" collapsible className="w-full">
-                      {itemsWithRequests.map(item => (
-                         <AccordionItem value={item.id} key={item.id}>
-                            <AccordionTrigger>
-                              <div className="flex items-center justify-between w-full text-left">
-                                <div className='flex items-center gap-4'>
-                                    <img src={item.imageUrl} alt={item.title} className="w-16 h-16 object-cover rounded-md" />
-                                    <div>
-                                        <p className="font-semibold">{item.title}</p>
-                                        <p className="text-sm text-muted-foreground">{item.solicitudes} solicitud(es) pendiente(s)</p>
-                                    </div>
-                                </div>
-                                <span className={`mr-4 text-xs font-semibold px-2 py-1 rounded-full bg-green-600/20 text-green-800'}`}>
-                                    {item.status}
-                                </span>
-                              </div>
-                            </AccordionTrigger>
-                            <AccordionContent>
-                              <ItemRequests item={item} requestFilter="Pendiente" />
-                            </AccordionContent>
-                         </AccordionItem>
-                      ))}
-                    </Accordion>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-
-function RejectedRequestsDashboard({ allAdminItems, isLoading, error }: { allAdminItems: Item[] | null, isLoading: boolean, error: Error | null }) {
     if (isLoading) return <p className="text-center py-8">Cargando artículos...</p>;
     if (error) return <p className="text-center text-destructive py-8">Error al cargar los artículos.</p>;
 
-    const itemsWithPotentiallyRejected = allAdminItems?.filter(item => (item.solicitudes || 0) > 0) || [];
-
-    if (itemsWithPotentiallyRejected.length === 0) {
-        return (
-            <Card>
-                <CardHeader>
-                    <CardTitle>Solicitudes Rechazadas</CardTitle>
-                    <CardDescription>Aquí puedes ver el historial de solicitudes que han sido rechazadas.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-center text-muted-foreground py-8">No hay artículos con solicitudes que puedan ser rechazadas.</p>
-                </CardContent>
-            </Card>
-        );
-    }
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Solicitudes Rechazadas</CardTitle>
-                <CardDescription>Aquí puedes ver el historial de solicitudes que han sido rechazadas.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                 <Accordion type="single" collapsible className="w-full">
-                      {itemsWithPotentiallyRejected.map(item => (
-                         <AccordionItem value={item.id} key={item.id}>
-                            <AccordionTrigger>
-                              <div className="flex items-center justify-between w-full text-left">
-                                <div className='flex items-center gap-4'>
-                                    <img src={item.imageUrl} alt={item.title} className="w-16 h-16 object-cover rounded-md" />
-                                    <p className="font-semibold">{item.title}</p>
-                                </div>
-                              </div>
-                            </AccordionTrigger>
-                            <AccordionContent>
-                              <ItemRequests item={item} requestFilter="Rechazada" />
-                            </AccordionContent>
-                         </AccordionItem>
-                      ))}
-                    </Accordion>
-            </CardContent>
-        </Card>
-    );
-}
-
-function AssignedItemsDashboard({ allAdminItems, isLoading, error }: { allAdminItems: Item[] | null, isLoading: boolean, error: Error | null }) {
-    if (isLoading) return <p className="text-center py-8">Cargando artículos...</p>;
-    if (error) return <p className="text-center text-destructive py-8">Error al cargar los artículos.</p>;
+    const requestsByMaterialId = allRequests?.reduce((acc, req) => {
+        if (!acc[req.materialId]) {
+            acc[req.materialId] = [];
+        }
+        acc[req.materialId].push(req);
+        return acc;
+    }, {} as Record<string, Solicitud[]>) || {};
 
     const assignedItems = allAdminItems?.filter(item => item.status === 'Asignado') || [];
+    const pendingItems = allAdminItems?.filter(item => {
+        const requests = requestsByMaterialId[item.id] || [];
+        return item.status === 'Disponible' && requests.some(r => r.status === 'Pendiente');
+    }) || [];
+    const rejectedItems = allAdminItems?.filter(item => {
+        const requests = requestsByMaterialId[item.id] || [];
+        return requests.some(r => r.status === 'Rechazada');
+    }) || [];
 
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Artículos Asignados</CardTitle>
-                <CardDescription>Este es el historial de artículos que ya han sido donados.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {assignedItems.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">Aún no se han asignado artículos.</p>
-                ) : (
-                    <Accordion type="single" collapsible className="w-full">
-                        {assignedItems.map(item => (
-                            <AccordionItem value={item.id} key={item.id}>
-                                <AccordionTrigger>
-                                    <div className="flex items-center justify-between w-full text-left">
-                                        <div className='flex items-center gap-4'>
-                                            <img src={item.imageUrl} alt={item.title} className="w-16 h-16 object-cover rounded-md" />
-                                            <div>
-                                                <p className="font-semibold">{item.title}</p>
-                                                <p className="text-sm text-muted-foreground">Asignado a solicitud: {item.asignadoA?.substring(0, 8)}...</p>
-                                            </div>
+    const renderAccordion = (items: Item[], requestStatusFilter: Solicitud['status'] | 'all') => {
+        if (items.length === 0) {
+            return <p className="text-center text-muted-foreground py-8">No hay elementos en esta categoría.</p>;
+        }
+        return (
+            <Accordion type="single" collapsible className="w-full">
+                {items.map(item => {
+                    const allItemRequests = requestsByMaterialId[item.id] || [];
+                    const filteredRequests = requestStatusFilter === 'all'
+                        ? allItemRequests.filter(r => r.status === 'Pendiente')
+                        : allItemRequests.filter(r => r.status === requestStatusFilter);
+                    
+                    if (requestStatusFilter !== 'all' && filteredRequests.length === 0) return null;
+
+                    return (
+                        <AccordionItem value={item.id} key={item.id}>
+                            <AccordionTrigger>
+                                <div className="flex items-center justify-between w-full text-left">
+                                    <div className='flex items-center gap-4'>
+                                        <img src={item.imageUrl} alt={item.title} className="w-16 h-16 object-cover rounded-md" />
+                                        <div>
+                                            <p className="font-semibold">{item.title}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {item.status === 'Asignado' 
+                                                  ? `Asignado a: ${allItemRequests.find(r => r.id === item.asignadoA)?.nombreCompleto || 'N/A'}`
+                                                  : `${allItemRequests.filter(r => r.status === 'Pendiente').length} solicitud(es) pendiente(s)`
+                                                }
+                                            </p>
                                         </div>
-                                        <span className='mr-4 text-xs font-semibold px-2 py-1 rounded-full bg-destructive/20 text-destructive'>
-                                            {item.status}
-                                        </span>
                                     </div>
-                                </AccordionTrigger>
-                                <AccordionContent>
-                                    <ItemRequests item={item} requestFilter="Pendiente" />
-                                </AccordionContent>
-                            </AccordionItem>
-                        ))}
-                    </Accordion>
-                )}
-            </CardContent>
-        </Card>
-    );
+                                    <span className={`mr-4 text-xs font-semibold px-2 py-1 rounded-full ${item.status === 'Disponible' ? 'bg-green-600/20 text-green-800' : 'bg-destructive/20 text-destructive'}`}>
+                                        {item.status}
+                                    </span>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                <ItemRequests item={item} requests={filteredRequests} onAction={onAction}/>
+                            </AccordionContent>
+                        </AccordionItem>
+                    )
+                })}
+            </Accordion>
+        );
+    }
+    
+    return (
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="requests">Pendientes ({pendingItems.length})</TabsTrigger>
+                <TabsTrigger value="assigned">Asignados ({assignedItems.length})</TabsTrigger>
+                <TabsTrigger value="rejected">Rechazadas</TabsTrigger>
+            </TabsList>
+            <TabsContent value="requests">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Solicitudes Pendientes</CardTitle>
+                        <CardDescription>Artículos con solicitudes nuevas que requieren tu atención.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                       {requestsLoading ? <p>Cargando solicitudes...</p> : renderAccordion(pendingItems, 'Pendiente')}
+                    </CardContent>
+                </Card>
+            </TabsContent>
+            <TabsContent value="assigned">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Artículos Asignados</CardTitle>
+                        <CardDescription>Historial de artículos que ya han sido donados.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {requestsLoading ? <p>Cargando...</p> : renderAccordion(assignedItems, 'Pendiente')}
+                    </CardContent>
+                </Card>
+            </TabsContent>
+            <TabsContent value="rejected">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Solicitudes Rechazadas</CardTitle>
+                        <CardDescription>Historial de solicitudes que han sido rechazadas.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                       {requestsLoading ? <p>Cargando...</p> : renderAccordion(rejectedItems, 'Rechazada')}
+                    </CardContent>
+                </Card>
+            </TabsContent>
+        </Tabs>
+    )
 }
-
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -551,7 +516,7 @@ export default function ProfilePage() {
 
   const userItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
-    return query(collection(firestore, 'materials'), where('postedBy', '==', user.uid));
+    return query(collection(firestore, 'materials')); // Admin sees all materials
   }, [firestore, user?.uid, refreshKey]);
 
   const { data: userItems, isLoading: userItemsLoading, error: userItemsError } = useCollection<Item>(userItemsQuery);
@@ -575,7 +540,7 @@ export default function ProfilePage() {
     });
   }
 
-  const handleFormSuccess = () => {
+  const handleAction = () => {
     setRefreshKey(prev => prev + 1);
   };
 
@@ -614,23 +579,21 @@ export default function ProfilePage() {
           <div className="flex gap-4 mt-4 justify-center md:justify-start">
              <div className="text-center">
                 <p className="text-2xl font-bold">{allItemsCount}</p>
-                <p className="text-sm text-muted-foreground">Artículos Publicados</p>
+                <p className="text-sm text-muted-foreground">Artículos en Plataforma</p>
              </div>
           </div>
         </div>
         <Button variant="outline" className="ml-auto" onClick={() => toast({ title: 'Próximamente', description: '¡Pronto podrás editar tu perfil!'})}>Editar Perfil</Button>
       </div>
 
-      <Tabs defaultValue="requests" onValueChange={() => setRefreshKey(prev => prev + 1)}>
-        <TabsList className="grid w-full grid-cols-5 max-w-3xl mx-auto">
+      <Tabs defaultValue="post-item" onValueChange={() => setRefreshKey(prev => prev + 1)}>
+        <TabsList className="grid w-full grid-cols-3 max-w-3xl mx-auto">
           <TabsTrigger value="post-item">Publicar</TabsTrigger>
           <TabsTrigger value="listings">Publicaciones</TabsTrigger>
-          <TabsTrigger value="requests">Pendientes</TabsTrigger>
-          <TabsTrigger value="assigned">Asignados</TabsTrigger>
-          <TabsTrigger value="rejected">Rechazadas</TabsTrigger>
+          <TabsTrigger value="requests">Solicitudes</TabsTrigger>
         </TabsList>
         <TabsContent value="post-item" className="mt-6">
-          <PostItemForm onFormSubmit={handleFormSuccess} />
+          <PostItemForm onFormSubmit={handleAction} />
         </TabsContent>
         <TabsContent value="listings">
           <Card>
@@ -653,17 +616,9 @@ export default function ProfilePage() {
           </Card>
         </TabsContent>
         <TabsContent value="requests" className="mt-6">
-           <PendingRequestsDashboard allAdminItems={userItems} isLoading={userItemsLoading} error={userItemsError} />
-        </TabsContent>
-         <TabsContent value="assigned" className="mt-6">
-           <AssignedItemsDashboard allAdminItems={userItems} isLoading={userItemsLoading} error={userItemsError} />
-        </TabsContent>
-         <TabsContent value="rejected" className="mt-6">
-           <RejectedRequestsDashboard allAdminItems={userItems} isLoading={userItemsLoading} error={userItemsError} />
+           <ItemRequestHistory allAdminItems={userItems} isLoading={userItemsLoading} error={userItemsError} onAction={handleAction}/>
         </TabsContent>
       </Tabs>
     </div>
   );
 }
-
-    
