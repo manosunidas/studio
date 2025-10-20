@@ -30,7 +30,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, where, doc, deleteDoc, serverTimestamp, addDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, doc, deleteDoc, serverTimestamp, addDoc, updateDoc, runTransaction, increment } from 'firebase/firestore';
 import type { Item, Solicitud } from '@/lib/types';
 import {
   AlertDialog,
@@ -247,6 +247,54 @@ function ItemRequests({ item }: { item: Item }) {
     });
   };
 
+  const unassignItem = async () => {
+    if (!firestore || !item) return;
+
+    const itemRef = doc(firestore, 'materials', item.id);
+    const updateData = {
+      status: 'Disponible' as const,
+      asignadoA: '',
+    };
+    
+    updateDoc(itemRef, updateData).then(() => {
+        toast({
+          title: 'Artículo Desasignado',
+          description: 'El artículo está disponible nuevamente.',
+        });
+    }).catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: itemRef.path,
+            operation: 'update',
+            requestResourceData: updateData
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+  }
+
+  const rejectRequest = async (solicitudId: string) => {
+    if(!firestore || !item) return;
+    
+    const itemRef = doc(firestore, 'materials', item.id);
+    const requestRef = doc(firestore, 'materials', item.id, 'requests', solicitudId);
+
+    try {
+        await runTransaction(firestore, async (transaction) => {
+            transaction.delete(requestRef);
+            transaction.update(itemRef, { solicitudes: increment(-1) });
+        });
+        toast({
+            title: 'Solicitud Rechazada',
+            description: 'La solicitud ha sido eliminada.'
+        });
+    } catch (e) {
+        const permissionError = new FirestorePermissionError({
+            path: requestRef.path,
+            operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }
+  };
+
   if (requestsLoading) return <p>Cargando solicitudes...</p>;
   
   if (error) {
@@ -260,30 +308,75 @@ function ItemRequests({ item }: { item: Item }) {
   return (
     <div className="space-y-4">
       {requests.map(request => (
-        <Card key={request.id} className="bg-muted/50">
-          <CardContent className="p-4 flex items-center justify-between">
+        <Card key={request.id} className={cn(
+            "bg-muted/50",
+            item.asignadoA === request.id && "border-primary ring-1 ring-primary"
+        )}>
+          <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <p><strong>Solicitante:</strong> {request.nombreCompleto}</p>
               <p className="text-sm text-muted-foreground"><strong>Dirección:</strong> {request.direccion}</p>
               <p className="text-sm text-muted-foreground"><strong>Teléfono:</strong> {request.telefono}</p>
             </div>
-             <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" disabled={item.status === 'Asignado'}>Asignar Artículo</Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Confirmar asignación?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción marcará el artículo como "Asignado" a este solicitante y lo retirará del catálogo público. Esta acción no se puede deshacer.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => assignItem(request.id)}>Confirmar Asignación</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+            <div className='flex gap-2 self-end sm:self-center'>
+             {item.status === 'Disponible' && (
+                <>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm">Asignar</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Confirmar asignación?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta acción marcará el artículo como "Asignado" a este solicitante y lo retirará del catálogo público. Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => assignItem(request.id)}>Confirmar Asignación</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="outline">Rechazar</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Rechazar esta solicitud?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta acción eliminará permanentemente la solicitud. Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => rejectRequest(request.id)} className='bg-destructive text-destructive-foreground hover:bg-destructive/90'>Confirmar Rechazo</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                </>
+             )}
+             {item.status === 'Asignado' && item.asignadoA === request.id && (
+                 <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="destructive">Desasignar</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Desasignar este artículo?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          El artículo volverá a estar "Disponible" y podrás asignarlo a otra persona.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={unassignItem}>Confirmar</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+             )}
+             </div>
           </CardContent>
         </Card>
       ))}
@@ -302,7 +395,7 @@ function RequestsDashboard({ allAdminItems, isLoading, error }: { allAdminItems:
     }
 
     const itemsWithRequests = useMemo(() => {
-        return (allAdminItems || []).filter(item => (item.solicitudes || 0) > 0 && item.status === 'Disponible');
+        return (allAdminItems || []).filter(item => (item.solicitudes || 0) > 0);
     }, [allAdminItems]);
 
     return (
@@ -321,12 +414,17 @@ function RequestsDashboard({ allAdminItems, isLoading, error }: { allAdminItems:
                       {itemsWithRequests.map(item => (
                          <AccordionItem value={item.id} key={item.id}>
                             <AccordionTrigger>
-                              <div className="flex items-center gap-4 text-left">
-                                <img src={item.imageUrl} alt={item.title} className="w-16 h-16 object-cover rounded-md" />
-                                <div>
-                                  <p className="font-semibold">{item.title}</p>
-                                  <p className="text-sm text-muted-foreground">{item.solicitudes} solicitud(es)</p>
+                              <div className="flex items-center justify-between w-full text-left">
+                                <div className='flex items-center gap-4'>
+                                    <img src={item.imageUrl} alt={item.title} className="w-16 h-16 object-cover rounded-md" />
+                                    <div>
+                                        <p className="font-semibold">{item.title}</p>
+                                        <p className="text-sm text-muted-foreground">{item.solicitudes} solicitud(es)</p>
+                                    </div>
                                 </div>
+                                <span className={`mr-4 text-xs font-semibold px-2 py-1 rounded-full ${item.status === 'Asignado' ? 'bg-destructive/20 text-destructive' : 'bg-green-600/20 text-green-800'}`}>
+                                    {item.status}
+                                </span>
                               </div>
                             </AccordionTrigger>
                             <AccordionContent>
@@ -434,7 +532,7 @@ export default function ProfilePage() {
         <Button variant="outline" className="ml-auto" onClick={() => toast({ title: 'Próximamente', description: '¡Pronto podrás editar tu perfil!'})}>Editar Perfil</Button>
       </div>
 
-      <Tabs defaultValue="post-item" onValueChange={() => setRefreshKey(prev => prev + 1)}>
+      <Tabs defaultValue="requests" onValueChange={() => setRefreshKey(prev => prev + 1)}>
         <TabsList className="grid w-full grid-cols-3 max-w-lg mx-auto">
           <TabsTrigger value="post-item">Publicar Artículo</TabsTrigger>
           <TabsTrigger value="listings">Mis Publicaciones</TabsTrigger>
@@ -470,5 +568,7 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
 
     
