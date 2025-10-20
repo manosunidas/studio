@@ -10,23 +10,35 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';
+import { useEffect } from 'react';
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const auth = getAuth();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        toast({
+          title: 'Inicio de sesión exitoso',
+          description: '¡Bienvenido de nuevo!',
+        });
+        router.push('/profile');
+      }
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, [auth, router, toast]);
+
 
   const handleGoogleLogin = async () => {
-    const auth = getAuth();
     const provider = new GoogleAuthProvider();
-
     try {
       await signInWithPopup(auth, provider);
-      toast({
-        title: 'Inicio de sesión exitoso',
-        description: '¡Bienvenido de nuevo!',
-      });
-      router.push('/profile');
+      // The useEffect will handle the redirect
     } catch (error: any) {
       toast({
         variant: 'destructive',
