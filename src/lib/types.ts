@@ -1,7 +1,7 @@
 import { Timestamp } from "firebase/firestore";
 import type { User as FirebaseUser } from 'firebase/auth';
 
-export type ItemCategory = 'Útiles' | 'Libros' | 'Uniformes';
+export type ItemCategory = 'Ropa' | 'Útiles' | 'Tecnología' | 'Libros' | 'Uniformes';
 export type ItemCondition = 'Nuevo' | 'Como nuevo' | 'Usado';
 export type ItemGradeLevel = 'Primaria' | 'Secundaria' | 'Bachillerato' | 'Todos';
 export type ItemStatus = 'Disponible' | 'Reservado' | 'Entregado';

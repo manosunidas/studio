@@ -32,7 +32,7 @@ import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage'
 const formSchema = z.object({
   title: z.string().min(1, 'El título es obligatorio'),
   description: z.string().min(1, 'La descripción es obligatoria'),
-  category: z.enum(['Útiles', 'Libros', 'Uniformes'], { required_error: 'Selecciona una categoría' }),
+  category: z.enum(['Ropa', 'Útiles', 'Tecnología'], { required_error: 'Selecciona una categoría' }),
   condition: z.enum(['Nuevo', 'Como nuevo', 'Usado'], { required_error: 'Selecciona la condición' }),
   gradeLevel: z.enum(['Primaria', 'Secundaria', 'Bachillerato', 'Todos'], { required_error: 'Selecciona el nivel escolar' }),
   picture: z.any().refine(files => files?.length > 0, 'La foto es obligatoria.'),
@@ -74,34 +74,44 @@ export default function PostItemPage() {
       reader.onload = async (e) => {
         const fileContent = e.target?.result as string;
         
-        const storage = getStorage();
-        const storageRef = ref(storage, `materials/${Date.now()}_${file.name}`);
-        const snapshot = await uploadString(storageRef, fileContent, 'data_url');
-        const imageUrl = await getDownloadURL(snapshot.ref);
+        try {
+            const storage = getStorage();
+            const storageRef = ref(storage, `materials/${Date.now()}_${file.name}`);
+            const snapshot = await uploadString(storageRef, fileContent, 'data_url');
+            const imageUrl = await getDownloadURL(snapshot.ref);
 
-        const materialsCollection = collection(firestore, 'materials');
-        await addDoc(materialsCollection, {
-          title: data.title,
-          description: data.description,
-          category: data.category,
-          condition: data.condition,
-          gradeLevel: data.gradeLevel,
-          imageUrl: imageUrl,
-          imageHint: 'school supplies', // You can create a more dynamic hint later
-          postedBy: user.email,
-          postedByName: user.displayName,
-          datePosted: serverTimestamp(),
-          isReserved: false,
-          status: 'Disponible',
-        });
+            const materialsCollection = collection(firestore, 'materials');
+            await addDoc(materialsCollection, {
+              title: data.title,
+              description: data.description,
+              category: data.category,
+              condition: data.condition,
+              gradeLevel: data.gradeLevel,
+              imageUrl: imageUrl,
+              imageHint: 'school supplies', // You can create a more dynamic hint later
+              postedBy: user.email,
+              postedByName: user.displayName,
+              datePosted: serverTimestamp(),
+              isReserved: false,
+              status: 'Disponible',
+            });
 
-        toast({
-          title: '¡Artículo publicado!',
-          description: 'Tu artículo ahora está visible para la comunidad.',
-        });
-        reset();
-        setIsSubmitting(false);
-        router.push('/profile');
+            toast({
+              title: '¡Artículo publicado!',
+              description: 'Tu artículo ahora está visible para la comunidad.',
+            });
+            reset();
+            router.push('/profile');
+        } catch (error) {
+            console.error("Error creating item:", error);
+            toast({
+                title: 'Error al publicar',
+                description: 'Hubo un problema al crear el artículo. Inténtalo de nuevo.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
       };
 
        reader.onerror = (error) => {
@@ -117,10 +127,10 @@ export default function PostItemPage() {
       reader.readAsDataURL(file);
 
     } catch (error) {
-      console.error("Error creating item:", error);
+      console.error("Error preparing file:", error);
       toast({
-        title: 'Error al publicar',
-        description: 'Hubo un problema al crear el artículo. Inténtalo de nuevo.',
+        title: 'Error de Archivo',
+        description: 'Hubo un problema al preparar la imagen para subir. Inténtalo de nuevo.',
         variant: 'destructive',
       });
       setIsSubmitting(false);
@@ -170,9 +180,9 @@ export default function PostItemPage() {
                           <SelectValue placeholder="Selecciona una categoría" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="Ropa">Ropa</SelectItem>
                           <SelectItem value="Útiles">Útiles</SelectItem>
-                          <SelectItem value="Libros">Libros</SelectItem>
-                          <SelectItem value="Uniformes">Uniformes</SelectItem>
+                          <SelectItem value="Tecnología">Tecnología</SelectItem>
                         </SelectContent>
                       </Select>
                     )}

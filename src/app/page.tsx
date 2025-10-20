@@ -90,9 +90,9 @@ export default function Home() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las categorías</SelectItem>
+                  <SelectItem value="Ropa">Ropa</SelectItem>
                   <SelectItem value="Útiles">Útiles escolares</SelectItem>
-                  <SelectItem value="Libros">Libros</SelectItem>
-                  <SelectItem value="Uniformes">Uniformes</SelectItem>
+                  <SelectItem value="Tecnología">Tecnología</SelectItem>
                 </SelectContent>
               </Select>
               <Select onValueChange={(value: ItemCondition | 'all') => setCondition(value)} defaultValue="all">
