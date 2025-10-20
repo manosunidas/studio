@@ -135,7 +135,7 @@ export default function ItemPage() {
                     Volver
                   </Button>
                   
-                   {isAvailable && (
+                   {isAvailable && !isAdmin && (
                       <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
                         <DialogTrigger asChild>
                           <Button size="lg">
