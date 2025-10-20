@@ -14,7 +14,7 @@ import { Heart, User, MapPin, Tag, ArrowLeft, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 import {
@@ -68,7 +68,7 @@ export default function ItemPage() {
 
   const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
 
-  const handleReserve = async (data: ReservationFormData) => {
+  const handleReserve = (data: ReservationFormData) => {
     if (!item || !itemRef) return;
     
     const updatedData = { 
@@ -79,12 +79,23 @@ export default function ItemPage() {
       reserverAddress: data.address,
       reserverPhone: data.phone,
     };
-    await updateDoc(itemRef, updatedData);
-    toast({
-        title: '¡Artículo reservado!',
-        description: 'Has reservado este artículo con éxito.',
-    });
-    setReservationDialogOpen(false);
+    
+    updateDoc(itemRef, updatedData)
+      .then(() => {
+        toast({
+            title: '¡Artículo reservado!',
+            description: 'Has reservado este artículo con éxito.',
+        });
+        setReservationDialogOpen(false);
+      })
+      .catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: itemRef.path,
+          operation: 'update',
+          requestResourceData: updatedData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      });
   };
   
   const handleCancelReservation = async () => {
@@ -120,7 +131,7 @@ export default function ItemPage() {
   
   const isAdmin = user?.email === 'jhelenandreat@gmail.com';
   const isOwner = user?.uid === item.postedBy;
-  const canReserve = !item.isReserved && !isOwner && !isAdmin;
+  const canReserve = !item.isReserved;
   const hasReserved = item.isReserved && item.reservedBy === user?.email;
   const isReservedByOther = item.isReserved && item.reservedBy !== user?.email && !isOwner;
 
@@ -285,5 +296,3 @@ export default function ItemPage() {
     </div>
   );
 }
-
-    
