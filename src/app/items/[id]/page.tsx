@@ -61,9 +61,14 @@ export default function ItemPage() {
     if (!item || !itemRef || !firestore) return;
 
     const requestsCollectionRef = collection(firestore, 'materials', id, 'requests');
+    const newRequestData = {
+        ...data,
+        materialId: id,
+        fechaSolicitud: serverTimestamp(),
+        status: 'Pendiente' as const,
+    };
     
-    try {
-      await runTransaction(firestore, async (transaction) => {
+    runTransaction(firestore, async (transaction) => {
         const itemDoc = await transaction.get(itemRef);
         if (!itemDoc.exists()) {
           throw "El artículo ya no existe.";
@@ -72,30 +77,24 @@ export default function ItemPage() {
         
         // Add new request
         const newRequestRef = doc(requestsCollectionRef);
-        transaction.set(newRequestRef, {
-          ...data,
-          materialId: id,
-          fechaSolicitud: serverTimestamp(),
-          status: 'Pendiente',
-        });
+        transaction.set(newRequestRef, newRequestData);
         
         // Update request count on material
         transaction.update(itemRef, { solicitudes: currentSolicitudes + 1 });
-      });
-
-      toast({
-        title: '¡Solicitud enviada!',
-        description: 'Tu solicitud ha sido registrada. El donante será notificado.',
-      });
-      setRequestDialogOpen(false);
-
-    } catch (e: any) {
-       toast({
-        variant: 'destructive',
-        title: 'Error al enviar la solicitud',
-        description: e.toString(),
-      });
-    }
+    }).then(() => {
+        toast({
+            title: '¡Solicitud enviada!',
+            description: 'Tu solicitud ha sido registrada. El donante será notificado.',
+        });
+        setRequestDialogOpen(false);
+    }).catch((e: any) => {
+        const permissionError = new FirestorePermissionError({
+            path: `materials/${id}/requests`,
+            operation: 'create',
+            requestResourceData: newRequestData
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   };
   
   if (isUserLoading || isItemLoading || !item) {
@@ -138,7 +137,7 @@ export default function ItemPage() {
                     Volver
                   </Button>
                   
-                   {isAvailable && !isAdmin && !user && (
+                   {isAvailable && !isAdmin && (
                       <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
                         <DialogTrigger asChild>
                           <Button size="lg">
@@ -232,5 +231,3 @@ export default function ItemPage() {
     </div>
   );
 }
-
-    
