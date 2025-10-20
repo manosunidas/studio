@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/firebase';
 import { getAuth, signOut } from 'firebase/auth';
@@ -23,8 +23,13 @@ export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [isSheetOpen, setSheetOpen] = useState(false);
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   const isAdmin = user?.email === 'jhelenandreat@gmail.com';
 
@@ -108,14 +113,14 @@ export function Header() {
             <span className="hidden sm:inline">Manos Unidas</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6">
-            {navLinks.map((link) => (
+            {isClient && navLinks.map((link) => (
               <NavLink key={link.href} {...link} />
             ))}
           </nav>
         </div>
 
         <div className="hidden md:flex items-center gap-4">
-          <AuthButtons />
+         {isClient && <AuthButtons />}
         </div>
 
         <div className="md:hidden">
@@ -135,21 +140,21 @@ export function Header() {
                     </Link>
                 </div>
                 <nav className="flex flex-col gap-4 py-6">
-                  {navLinks.map((link) => (
+                  {isClient && navLinks.map((link) => (
                     <NavLink key={link.href} {...link} />
                   ))}
                 </nav>
                 <div className="mt-auto border-t pt-6">
-                  {user ? (
+                  {isClient && user ? (
                      <div className="flex flex-col gap-4">
                         <Link href="/profile" className="flex items-center gap-2 text-sm font-medium" onClick={() => setSheetOpen(false)}><UserCircle/> Mi Perfil</Link>
                         <Button onClick={() => { handleLogout(); setSheetOpen(false); }}>Cerrar Sesión</Button>
                      </div>
-                  ) : (
+                  ) : isClient ? (
                     <div className="flex flex-col gap-4">
                       <Button variant="ghost" asChild><Link href="/login" onClick={() => setSheetOpen(false)}>Iniciar Sesión</Link></Button>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </div>
             </SheetContent>
