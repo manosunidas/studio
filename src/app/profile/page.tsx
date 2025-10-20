@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -218,7 +218,7 @@ function ItemRequests({ item }: { item: Item }) {
   
   const requestsQuery = useMemoFirebase(() => {
     if (!firestore || !item) return null;
-    return query(collection(firestore, 'materials', item.id, 'requests'));
+    return collection(firestore, 'materials', item.id, 'requests');
   }, [firestore, item.id]);
 
   const { data: requests, isLoading: requestsLoading, error } = useCollection<Solicitud>(requestsQuery);
@@ -248,15 +248,18 @@ function ItemRequests({ item }: { item: Item }) {
   };
 
   if (requestsLoading) return <p>Cargando solicitudes...</p>;
-
+  
   if (error) {
-    // This can happen if the admin doesn't have permission to read the subcollection
     return <p className="text-sm text-center text-destructive py-4">Error al cargar las solicitudes. Verifica las reglas de seguridad.</p>
+  }
+  
+  if (!requests || requests.length === 0) {
+    return <p className="text-sm text-center text-muted-foreground py-4">Este artículo no tiene solicitudes.</p>;
   }
 
   return (
     <div className="space-y-4">
-      {requests && requests.length > 0 ? requests.map(request => (
+      {requests.map(request => (
         <Card key={request.id} className="bg-muted/50">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
@@ -283,7 +286,7 @@ function ItemRequests({ item }: { item: Item }) {
               </AlertDialog>
           </CardContent>
         </Card>
-      )) : <p className="text-sm text-center text-muted-foreground py-4">Este artículo no tiene solicitudes.</p>}
+      ))}
     </div>
   );
 }
@@ -291,14 +294,16 @@ function ItemRequests({ item }: { item: Item }) {
 function RequestsDashboard({ allAdminItems, isLoading, error }: { allAdminItems: Item[] | null, isLoading: boolean, error: Error | null }) {
     
     if (isLoading) {
-        return <p className="text-center py-8">Cargando artículos con solicitudes...</p>;
+        return <p className="text-center py-8">Cargando artículos...</p>;
     }
     
     if (error) {
         return <p className="text-center text-destructive py-8">Error al cargar los artículos. Es posible que no tengas permisos para verlos.</p>
     }
 
-    const itemsWithRequests = (allAdminItems || []).filter(item => item.solicitudes > 0 && item.status === 'Disponible');
+    const itemsWithRequests = useMemo(() => {
+        return (allAdminItems || []).filter(item => (item.solicitudes || 0) > 0 && item.status === 'Disponible');
+    }, [allAdminItems]);
 
     return (
         <Card>
@@ -359,7 +364,6 @@ export default function ProfilePage() {
 
   const userItemsQuery = useMemoFirebase(() => {
     if (!firestore || !user?.uid) return null;
-    // Query for items posted by the currently logged-in user (admin).
     return query(collection(firestore, 'materials'), where('postedBy', '==', user.uid));
   }, [firestore, user?.uid, refreshKey]);
 
@@ -466,7 +470,5 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    
 
     
