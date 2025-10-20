@@ -29,9 +29,6 @@ if (admin.apps.length === 0) {
   }
 }
 
-const firestore = admin.firestore();
-
-
 const CreateRequestInputSchema = z.object({
   materialId: z.string().describe('The ID of the material being requested.'),
   nombreCompleto: z.string().describe('The full name of the requester.'),
@@ -50,6 +47,9 @@ export type CreateRequestOutput = z.infer<typeof CreateRequestOutputSchema>;
 
 export async function createRequest(input: CreateRequestInput): Promise<CreateRequestOutput> {
   try {
+    // Get firestore instance inside the function to ensure initialization is complete.
+    const firestore = admin.firestore();
+
     // Validate input against the Zod schema
     const validatedInput = CreateRequestInputSchema.parse(input);
 
