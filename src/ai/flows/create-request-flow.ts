@@ -11,14 +11,23 @@
 import { z } from 'zod';
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { config } from 'dotenv';
+
+// Load environment variables from .env file
+config();
 
 // Initialize Firebase Admin SDK idempotently.
-// This block ensures that initialization happens only once.
 if (admin.apps.length === 0) {
   try {
-    // When deployed to App Hosting, the SDK is automatically initialized by using application default credentials.
-    // In other environments, you might need to set up GOOGLE_APPLICATION_CREDENTIALS.
-    admin.initializeApp();
+    const serviceAccountString = process.env.FIREBASE_ADMIN_SDK_CONFIG;
+    if (!serviceAccountString) {
+      throw new Error('FIREBASE_ADMIN_SDK_CONFIG environment variable not set.');
+    }
+    const serviceAccount = JSON.parse(serviceAccountString);
+    
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
   } catch (e: any) {
     console.error("Firebase Admin SDK initialization failed.", e);
     // In a real-world scenario, you might want to throw this error
@@ -45,7 +54,6 @@ export type CreateRequestOutput = z.infer<typeof CreateRequestOutputSchema>;
 export async function createRequest(input: CreateRequestInput): Promise<CreateRequestOutput> {
   try {
     // Get firestore instance inside the function to ensure initialization is complete.
-    // This is critical if the admin app hasn't been initialized at the module level.
     const firestore = admin.firestore();
 
     // Validate input against the Zod schema
