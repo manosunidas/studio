@@ -8,20 +8,9 @@
  */
 
 import { z } from 'zod';
-import * as admin from 'firebase-admin';
+import { getFirestore, doc, runTransaction, FieldValue, serverTimestamp, collection, writeBatch } from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase';
 
-// Helper function to initialize Firebase Admin SDK
-function initializeAdminApp() {
-  if (admin.apps.length > 0) {
-    return admin.app();
-  }
-
-  // Firebase App Hosting provides GOOGLE_CLOUD_PROJECT, which is used by default.
-  // The service account is also automatically discovered.
-  admin.initializeApp();
-
-  return admin.app();
-}
 
 const CreateRequestInputSchema = z.object({
   materialId: z.string().describe('The ID of the material being requested.'),
@@ -40,51 +29,42 @@ export type CreateRequestOutput = z.infer<typeof CreateRequestOutputSchema>;
 
 export async function createRequest(input: CreateRequestInput): Promise<CreateRequestOutput> {
   try {
-    const adminApp = initializeAdminApp();
-    const firestore = admin.firestore();
+    const { firestore } = initializeFirebase();
 
     // Validate input against the Zod schema
     const validatedInput = CreateRequestInputSchema.parse(input);
 
-    const materialRef = firestore.collection('materials').doc(validatedInput.materialId);
-    const requestsCollectionRef = materialRef.collection('requests');
+    const materialRef = doc(firestore, 'materials', validatedInput.materialId);
+    const requestsCollectionRef = collection(materialRef, 'requests');
+    
+    const newRequestRef = doc(requestsCollectionRef); // Create a new doc with a generated ID
+    
+    await runTransaction(firestore, async (transaction) => {
+        const materialDoc = await transaction.get(materialRef);
+        if (!materialDoc.exists()) {
+            throw new Error('El artículo ya no existe.');
+        }
 
-    let newRequestId: string | undefined;
+        const newRequestData = {
+            materialId: validatedInput.materialId,
+            nombreCompleto: validatedInput.nombreCompleto,
+            direccion: validatedInput.direccion,
+            telefono: validatedInput.telefono,
+            fechaSolicitud: serverTimestamp(),
+            status: 'Pendiente' as const,
+            id: newRequestRef.id,
+        };
 
-    await firestore.runTransaction(async (transaction) => {
-      const materialDoc = await transaction.get(materialRef);
-      if (!materialDoc.exists) {
-        throw new Error('El artículo ya no existe.');
-      }
-      
-      const newRequestRef = requestsCollectionRef.doc();
-      newRequestId = newRequestRef.id;
-      
-      const newRequestData = {
-        materialId: validatedInput.materialId,
-        nombreCompleto: validatedInput.nombreCompleto,
-        direccion: validatedInput.direccion,
-        telefono: validatedInput.telefono,
-        fechaSolicitud: admin.firestore.FieldValue.serverTimestamp(),
-        status: 'Pendiente' as const,
-        id: newRequestId, // Store the ID within the document
-      };
-
-      transaction.set(newRequestRef, newRequestData);
-      
-      // Use FieldValue to atomically increment the counter
-      transaction.update(materialRef, { 
-          solicitudes: admin.firestore.FieldValue.increment(1) 
-      });
+        transaction.set(newRequestRef, newRequestData);
+        transaction.update(materialRef, { 
+            solicitudes: (materialDoc.data().solicitudes || 0) + 1
+        });
     });
 
-    if (!newRequestId) {
-        throw new Error('No se pudo crear el ID de la solicitud.');
-    }
 
     return {
       success: true,
-      requestId: newRequestId,
+      requestId: newRequestRef.id,
       message: '¡Solicitud enviada con éxito!',
     };
   } catch (error: any) {

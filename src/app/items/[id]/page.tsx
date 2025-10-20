@@ -62,11 +62,14 @@ export default function ItemPage() {
   const handleRequest = async (data: RequestFormData) => {
     if (!id) return;
     setIsSubmitting(true);
+    
+    const newRequestData = {
+      materialId: id,
+      ...data,
+    };
+    
     try {
-      const result = await createRequest({
-        materialId: id,
-        ...data,
-      });
+      const result = await createRequest(newRequestData);
 
       if (result.success) {
         toast({
@@ -78,6 +81,15 @@ export default function ItemPage() {
         throw new Error(result.message);
       }
     } catch (e: any) {
+        // Since we are not using the admin SDK anymore, we emit the error from the client
+        // This gives us better debugging info if permissions fail again.
+        const permissionError = new FirestorePermissionError({
+            path: `materials/${id}/requests`,
+            operation: 'create',
+            requestResourceData: newRequestData
+        });
+        errorEmitter.emit('permission-error', permissionError);
+
         toast({
             variant: "destructive",
             title: "Error al enviar la solicitud",
