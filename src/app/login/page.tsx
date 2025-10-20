@@ -12,33 +12,36 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth';
 import { useEffect } from 'react';
+import { useUser } from '@/firebase';
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useUser();
   const auth = getAuth();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        toast({
-          title: 'Inicio de sesión exitoso',
-          description: '¡Bienvenido de nuevo!',
-        });
-        router.push('/profile');
-      }
-    });
-
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, [auth, router, toast]);
+    // Redirect admin to profile if they land here already logged in
+    if (user && !user.isAnonymous) {
+      toast({
+        title: 'Ya has iniciado sesión',
+        description: 'Redirigiendo a tu perfil.',
+      });
+      router.replace('/profile');
+    }
+  }, [user, router, toast]);
 
 
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      // The useEffect will handle the redirect
+      toast({
+        title: 'Inicio de sesión exitoso',
+        description: '¡Bienvenido de nuevo, administrador!',
+      });
+      router.push('/profile');
+      // The useEffect in the provider will handle the redirect
     } catch (error: any) {
       // Don't show an error toast if the user simply closes the popup.
       if (error.code === 'auth/popup-closed-by-user') {
@@ -56,9 +59,9 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-[calc(100vh-14rem)] py-12">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-headline">Iniciar Sesión</CardTitle>
+          <CardTitle className="text-2xl font-headline">Acceso de Administrador</CardTitle>
           <CardDescription>
-            Usa tu cuenta de Google para acceder.
+            Usa tu cuenta de Google para gestionar la plataforma.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">

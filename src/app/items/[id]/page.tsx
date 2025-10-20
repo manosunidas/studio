@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -31,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 const requestSchema = z.object({
+  nombreCompleto: z.string().min(3, 'El nombre es obligatorio'),
   direccion: z.string().min(5, 'La dirección es obligatoria'),
   telefono: z.string().min(7, 'El teléfono es obligatorio'),
 });
@@ -47,9 +47,15 @@ export default function ItemPage() {
   const [isRequestDialogOpen, setRequestDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<RequestFormData>({
+  const { register, handleSubmit, formState: { errors }, setValue } = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema)
   });
+
+  useEffect(() => {
+    if (user && !user.isAnonymous) {
+      setValue('nombreCompleto', user.displayName || '');
+    }
+  }, [user, setValue]);
 
   const itemRef = useMemoFirebase(() => {
     if (!firestore || !id) return null;
@@ -63,7 +69,7 @@ export default function ItemPage() {
         toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Debes iniciar sesión para solicitar un artículo.',
+            description: 'No se pudo verificar la autenticación. Por favor, recarga la página.',
         });
         return;
     };
@@ -74,8 +80,9 @@ export default function ItemPage() {
 
     const newRequestData = {
       materialId: id,
-      nombreCompleto: user.displayName || 'Usuario Anónimo',
-      emailSolicitante: user.email,
+      solicitanteId: user.uid,
+      nombreCompleto: data.nombreCompleto,
+      ...(user.email && { emailSolicitante: user.email }),
       direccion: data.direccion,
       telefono: data.telefono,
       fechaSolicitud: serverTimestamp(),
@@ -94,7 +101,7 @@ export default function ItemPage() {
     }).catch((e: any) => {
       // This is where we catch permission errors and create a contextual error.
       const permissionError = new FirestorePermissionError({
-          path: `materials/${id}/requests`,
+          path: requestsCollectionRef.path,
           operation: 'create',
           requestResourceData: newRequestData
       });
@@ -144,7 +151,7 @@ export default function ItemPage() {
                     Volver
                   </Button>
                   
-                   {isAvailable && user && (
+                   {isAvailable && (
                       <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
                         <DialogTrigger asChild>
                           <Button size="lg">
@@ -157,18 +164,21 @@ export default function ItemPage() {
                             <DialogHeader>
                               <DialogTitle>Solicitar este artículo</DialogTitle>
                               <DialogDescription>
-                                Tus datos de contacto (nombre y correo) se compartirán con el donante. Completa la información de entrega.
+                                Completa tus datos de contacto para que el donante pueda comunicarse contigo.
                               </DialogDescription>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
                                <div className="grid gap-2">
-                                <Label>Nombre</Label>
-                                <Input value={user.displayName || ''} disabled />
-                              </div>
-                               <div className="grid gap-2">
-                                <Label>Email</Label>
-                                <Input value={user.email || ''} disabled />
-                              </div>
+                                <Label htmlFor="nombreCompleto">Nombre Completo</Label>
+                                <Input id="nombreCompleto" {...register('nombreCompleto')} disabled={isSubmitting || (!!user && !user.isAnonymous)} placeholder="Tu nombre completo" />
+                                {errors.nombreCompleto && <p className="text-sm text-destructive">{errors.nombreCompleto.message}</p>}
+                               </div>
+                               {user?.email && (
+                                <div className="grid gap-2">
+                                  <Label>Email</Label>
+                                  <Input value={user.email} disabled />
+                                </div>
+                               )}
                               <div className="grid gap-2">
                                 <Label htmlFor="direccion">Dirección de Entrega</Label>
                                 <Input id="direccion" {...register('direccion')} disabled={isSubmitting} placeholder="Tu dirección completa" />
@@ -189,12 +199,6 @@ export default function ItemPage() {
                         </DialogContent>
                       </Dialog>
                     )}
-                     {isAvailable && !user && (
-                        <Button size="lg" onClick={() => router.push('/login')}>
-                            <LogIn className="mr-2 h-5 w-5" />
-                            Iniciar sesión para solicitar
-                        </Button>
-                     )}
                 </div>
             </div>
             <p className="text-lg text-muted-foreground mt-2">
@@ -249,5 +253,3 @@ export default function ItemPage() {
     </div>
   );
 }
-
-    

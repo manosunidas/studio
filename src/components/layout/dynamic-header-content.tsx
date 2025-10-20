@@ -37,7 +37,7 @@ export function DynamicHeaderContent() {
       await signOut(getAuth());
       toast({
         title: 'Sesión cerrada',
-        description: 'Has cerrado sesión exitosamente.',
+        description: 'Has cerrado sesión exitosamente. Serás un usuario anónimo.',
       });
       router.push('/');
     } catch (error) {
@@ -50,16 +50,17 @@ export function DynamicHeaderContent() {
   };
   
   const getInitials = (name: string | null | undefined) => {
-    if (!name) return 'U';
+    if (!name) return 'A';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
-  const NavLink = ({ href, label }: { href: string; label: string }) => (
+  const NavLink = ({ href, label, className }: { href: string; label: string, className?: string }) => (
     <Link
       href={href}
       className={cn(
-        'text-2xl font-medium transition-colors hover:text-primary',
-        pathname === href ? 'text-primary' : 'text-muted-foreground'
+        'font-medium transition-colors hover:text-primary',
+        pathname === href ? 'text-primary' : 'text-muted-foreground',
+        className
       )}
       onClick={() => setSheetOpen(false)}
     >
@@ -68,10 +69,10 @@ export function DynamicHeaderContent() {
   );
 
   const renderDynamicContent = () => {
-    const isAdmin = user?.email === 'jhelenandreat@gmail.com';
+    const isAdmin = user && !user.isAnonymous;
     const navLinks = [
-      { href: '/', label: 'Inicio' },
-      ...(isAdmin ? [{ href: '/profile', label: 'Mi Panel' }] : []),
+      { href: '/', label: 'Inicio', className: "text-lg" },
+      ...(isAdmin ? [{ href: '/profile', label: 'Mi Panel', className: "text-lg" }] : []),
     ];
 
     return (
@@ -84,13 +85,13 @@ export function DynamicHeaderContent() {
             ))}
           </nav>
           <div className="flex items-center gap-4">
-            {user ? (
+            {isAdmin ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-20 w-20 rounded-full">
-                     <Avatar className="h-20 w-20">
+                  <Button variant="ghost" className="relative h-12 w-12 rounded-full">
+                     <Avatar className="h-12 w-12">
                         <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'Avatar'} />
-                        <AvatarFallback className="text-4xl">{getInitials(user.displayName)}</AvatarFallback>
+                        <AvatarFallback className="text-xl">{getInitials(user.displayName)}</AvatarFallback>
                       </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
@@ -105,7 +106,7 @@ export function DynamicHeaderContent() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/profile">Mi Perfil</Link>
+                    <Link href="/profile">Mi Panel</Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
@@ -113,7 +114,7 @@ export function DynamicHeaderContent() {
               </DropdownMenu>
             ) : (
               <Button variant="ghost" asChild>
-                <Link href="/login" className="text-2xl">Iniciar Sesión (Admin)</Link>
+                <Link href="/login" className="text-lg">Iniciar Sesión (Admin)</Link>
               </Button>
             )}
           </div>
@@ -124,14 +125,14 @@ export function DynamicHeaderContent() {
           <Sheet open={isSheetOpen} onOpenChange={setSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
-                <Menu className="h-12 w-12" />
+                <Menu className="h-8 w-8" />
                 <span className="sr-only">Abrir menú</span>
               </Button>
             </SheetTrigger>
             <SheetContent side="left">
               <div className="flex flex-col h-full">
                 <div className="border-b pb-4">
-                  <span className="font-bold text-2xl">Menú</span>
+                  <span className="font-bold text-lg">Menú</span>
                 </div>
                 <nav className="flex flex-col gap-4 py-6">
                   {navLinks.map((link) => (
@@ -139,24 +140,24 @@ export function DynamicHeaderContent() {
                   ))}
                 </nav>
                 <div className="mt-auto border-t pt-6">
-                  {user ? (
+                  {isAdmin ? (
                     <div className="flex flex-col gap-4">
-                      <Link href="/profile" className="flex items-center gap-4 text-2xl font-medium" onClick={() => setSheetOpen(false)}>
-                        <Avatar className="h-20 w-20">
+                      <Link href="/profile" className="flex items-center gap-4 text-lg font-medium" onClick={() => setSheetOpen(false)}>
+                        <Avatar className="h-12 w-12">
                             <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'Avatar'} />
-                            <AvatarFallback className="text-4xl">{getInitials(user.displayName)}</AvatarFallback>
+                            <AvatarFallback className="text-xl">{getInitials(user.displayName)}</AvatarFallback>
                         </Avatar>
                         <div>
-                             <p className="text-lg font-semibold">{user.displayName}</p>
-                             <p className="text-sm text-muted-foreground">Mi Perfil</p>
+                             <p className="text-base font-semibold">{user.displayName}</p>
+                             <p className="text-sm text-muted-foreground">Ir al Panel</p>
                         </div>
                       </Link>
                       <Button onClick={() => { handleLogout(); setSheetOpen(false); }} size="lg">Cerrar Sesión</Button>
                     </div>
                   ) : (
                     <div className="flex flex-col gap-4">
-                      <Button variant="ghost" asChild>
-                        <Link href="/login" className="text-2xl" onClick={() => setSheetOpen(false)}>Iniciar Sesión (Admin)</Link>
+                      <Button asChild size="lg">
+                        <Link href="/login" onClick={() => setSheetOpen(false)}>Iniciar Sesión (Admin)</Link>
                       </Button>
                     </div>
                   )}
@@ -170,11 +171,10 @@ export function DynamicHeaderContent() {
   };
   
   return isMounted ? renderDynamicContent() : (
-    <div className="md:hidden">
-      <Button variant="ghost" size="icon" disabled>
-        <Menu className="h-12 w-12" />
-        <span className="sr-only">Abrir menú</span>
-      </Button>
+    <div className="flex items-center gap-4">
+        <div className="w-24 h-8 bg-muted rounded-md animate-pulse md:w-32"></div>
+        <div className="w-12 h-12 bg-muted rounded-full animate-pulse hidden md:block"></div>
+        <div className="w-8 h-8 bg-muted rounded-md animate-pulse md:hidden"></div>
     </div>
   );
 }

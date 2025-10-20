@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -650,10 +649,10 @@ export default function ProfilePage() {
   const isAdmin = user?.email === 'jhelenandreat@gmail.com';
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
+    if (!isUserLoading && (!user || user.isAnonymous)) {
       toast({
         title: 'Acceso denegado',
-        description: 'Debes iniciar sesión para ver esta página.',
+        description: 'Debes iniciar sesión como administrador para ver esta página.',
         variant: 'destructive',
       });
       router.push('/login');
@@ -661,9 +660,9 @@ export default function ProfilePage() {
   }, [user, isUserLoading, router, toast]);
 
   const userItemsQuery = useMemoFirebase(() => {
-    if (!firestore || !user?.uid) return null;
+    if (!firestore || !isAdmin) return null;
     return query(collection(firestore, 'materials')); // Admin sees all materials
-  }, [firestore, user?.uid, refreshKey]);
+  }, [firestore, isAdmin, refreshKey]);
 
   const { data: userItems, isLoading: userItemsLoading, error: userItemsError } = useCollection<Item>(userItemsQuery);
 
@@ -699,11 +698,12 @@ export default function ProfilePage() {
     handleAction();
   };
 
-  if (isUserLoading || !user) {
+  if (isUserLoading || !user || user.isAnonymous) {
     return <div className="container text-center py-20">Cargando...</div>;
   }
   
   if(!isAdmin) {
+    // This case is handled by the useEffect, but as a fallback
     return (
         <div className="container text-center py-20">
             <h1 className="text-2xl font-bold">Acceso Denegado</h1>
@@ -714,7 +714,7 @@ export default function ProfilePage() {
   }
 
   const getInitials = (name: string | null | undefined) => {
-    if (!name) return 'U';
+    if (!name) return 'A';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
   
