@@ -38,7 +38,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useCollection, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { collection, query, where, doc, deleteDoc, serverTimestamp, addDoc, updateDoc, runTransaction, increment, collectionGroup, getDocs } from 'firebase/firestore';
+import { collection, query, where, doc, deleteDoc, serverTimestamp, addDoc, updateDoc } from 'firebase/firestore';
 import type { Item, Solicitud } from '@/lib/types';
 import {
   AlertDialog,
@@ -374,9 +374,25 @@ function EditItemForm({ item, onFormSubmit, onCancel }: { item: Item, onFormSubm
 }
 
 
-function ItemRequests({ item, requests, onAction }: { item: Item, requests: Solicitud[], onAction: () => void }) {
+function ItemRequests({ item, requestFilter, onAction }: { item: Item, requestFilter: Solicitud['status'] | 'all', onAction: () => void }) {
   const firestore = useFirestore();
   const { toast } = useToast();
+
+  const requestsQuery = useMemoFirebase(() => {
+    if (!firestore || !item) return null;
+    let q = query(collection(firestore, 'materials', item.id, 'requests'));
+    if (requestFilter !== 'all') {
+      q = query(q, where('status', '==', requestFilter));
+    }
+     // Show pending requests for assigned items as well.
+    if(item.status === 'Asignado'){
+        q = query(collection(firestore, 'materials', item.id, 'requests'));
+    }
+
+    return q;
+  }, [firestore, item, requestFilter]);
+
+  const { data: requests, isLoading } = useCollection<Solicitud>(requestsQuery);
 
   const assignItem = async (solicitudId: string) => {
     if (!firestore || !item) return;
@@ -450,13 +466,23 @@ function ItemRequests({ item, requests, onAction }: { item: Item, requests: Soli
     });
   };
   
+  if (isLoading) return <p className="text-sm text-center text-muted-foreground py-4">Cargando solicitudes...</p>
   if (!requests || requests.length === 0) {
-    return <p className="text-sm text-center text-muted-foreground py-4">No hay solicitudes en esta categoría.</p>;
+    if (requestFilter === 'all' || requestFilter === 'Pendiente') return <p className="text-sm text-center text-muted-foreground py-4">No hay solicitudes pendientes para este artículo.</p>;
+    return null;
+  }
+
+  const finalRequests = item.status === 'Asignado'
+    ? requests.filter(r => r.status === 'Pendiente' || r.id === item.asignadoA)
+    : requests;
+    
+  if (finalRequests.length === 0) {
+     return <p className="text-sm text-center text-muted-foreground py-4">No hay solicitudes para mostrar.</p>;
   }
 
   return (
     <div className="space-y-4">
-      {requests.map(request => (
+      {finalRequests.map(request => (
         <Card key={request.id} className={cn(
             "bg-muted/50",
             item.asignadoA === request.id && "border-primary ring-1 ring-primary"
@@ -496,7 +522,7 @@ function ItemRequests({ item, requests, onAction }: { item: Item, requests: Soli
                       <AlertDialogHeader>
                         <AlertDialogTitle>¿Rechazar esta solicitud?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Esta acción marcará la solicitud como 'Rechazada' y la moverá al historial de rechazadas. No se puede deshacer.
+                          Esta acción marcará la solicitud como 'Rechazada' y ya no se mostrará como pendiente. No se puede deshacer.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -536,53 +562,25 @@ function ItemRequests({ item, requests, onAction }: { item: Item, requests: Soli
 
 function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { allAdminItems: Item[] | null, isLoading: boolean, error: Error | null, onAction: () => void }) {
     const [activeTab, setActiveTab] = useState('requests');
-    const firestore = useFirestore();
-    const { user } = useUser();
-    
-    const allRequestsQuery = useMemoFirebase(() => {
-        if (!firestore || !user?.uid) return null;
-        return query(collectionGroup(firestore, 'requests'));
-    }, [firestore, user?.uid, onAction]);
-
-    const { data: allRequests, isLoading: requestsLoading, error: requestsError } = useCollection<Solicitud>(allRequestsQuery);
 
     if (isLoading) return <p className="text-center py-8">Cargando artículos...</p>;
     if (error) return <p className="text-center text-destructive py-8">Error al cargar los artículos.</p>;
 
-    const requestsByMaterialId = allRequests?.reduce((acc, req) => {
-        if (!acc[req.materialId]) {
-            acc[req.materialId] = [];
-        }
-        acc[req.materialId].push(req);
-        return acc;
-    }, {} as Record<string, Solicitud[]>) || {};
-
     const assignedItems = allAdminItems?.filter(item => item.status === 'Asignado') || [];
-    const pendingItems = allAdminItems?.filter(item => {
-        const requests = requestsByMaterialId[item.id] || [];
-        return item.status === 'Disponible' && requests.some(r => r.status === 'Pendiente');
-    }) || [];
-    const rejectedItems = allAdminItems?.filter(item => {
-        const requests = requestsByMaterialId[item.id] || [];
-        return requests.some(r => r.status === 'Rechazada');
-    }) || [];
-
-    const renderAccordion = (items: Item[], requestStatusFilter: Solicitud['status'] | 'all') => {
+    const pendingItems = allAdminItems?.filter(item => item.status === 'Disponible' && item.solicitudes > 0) || [];
+    const rejectedItems = allAdminItems?.filter(item => item.solicitudes > 0) || [];
+    
+    const renderAccordion = (items: Item[], requestFilter: Solicitud['status'] | 'all') => {
         if (items.length === 0) {
             return <p className="text-center text-muted-foreground py-8">No hay elementos en esta categoría.</p>;
         }
         return (
             <Accordion type="single" collapsible className="w-full">
                 {items.map(item => {
-                    const allItemRequests = requestsByMaterialId[item.id] || [];
-                    const filteredRequests = requestStatusFilter === 'all'
-                        ? allItemRequests.filter(r => r.status === 'Pendiente')
-                        : allItemRequests.filter(r => r.status === requestStatusFilter);
+                    const assignedRequest = requestFilter === 'all' && item.status === 'Asignado' 
+                        ? assignedItems.find(i => i.id === item.id)?.asignadoA || 'N/A'
+                        : 'N/A';
                     
-                    if (requestStatusFilter !== 'all' && filteredRequests.length === 0 && requestStatusFilter !== 'Pendiente') return null;
-                    if(requestStatusFilter === 'Pendiente' && item.status === 'Asignado') return null;
-
-
                     return (
                         <AccordionItem value={item.id} key={item.id}>
                             <AccordionTrigger>
@@ -592,9 +590,9 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
                                         <div>
                                             <p className="font-semibold">{item.title}</p>
                                             <p className="text-sm text-muted-foreground">
-                                                {item.status === 'Asignado' 
-                                                  ? `Asignado a: ${allItemRequests.find(r => r.id === item.asignadoA)?.nombreCompleto || 'N/A'}`
-                                                  : `${allItemRequests.filter(r => r.status === 'Pendiente').length} solicitud(es) pendiente(s)`
+                                                {item.status === 'Asignado'
+                                                  ? `Asignado`
+                                                  : `${item.solicitudes} solicitud(es)`
                                                 }
                                             </p>
                                         </div>
@@ -605,7 +603,7 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent>
-                                <ItemRequests item={item} requests={filteredRequests} onAction={onAction}/>
+                                <ItemRequests item={item} requestFilter={requestFilter} onAction={onAction}/>
                             </AccordionContent>
                         </AccordionItem>
                     )
@@ -628,7 +626,7 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
                         <CardDescription>Artículos con solicitudes nuevas que requieren tu atención.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                       {requestsLoading ? <p>Cargando solicitudes...</p> : renderAccordion(pendingItems, 'Pendiente')}
+                       {renderAccordion(pendingItems, 'Pendiente')}
                     </CardContent>
                 </Card>
             </TabsContent>
@@ -639,7 +637,7 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
                         <CardDescription>Historial de artículos que ya han sido donados.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {requestsLoading ? <p>Cargando...</p> : renderAccordion(assignedItems, 'Pendiente')}
+                        {renderAccordion(assignedItems, 'all')}
                     </CardContent>
                 </Card>
             </TabsContent>
@@ -650,7 +648,7 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
                         <CardDescription>Historial de solicitudes que han sido rechazadas.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                       {requestsLoading ? <p>Cargando...</p> : renderAccordion(rejectedItems, 'Rechazada')}
+                       {renderAccordion(rejectedItems, 'Rechazada')}
                     </CardContent>
                 </Card>
             </TabsContent>
@@ -800,3 +798,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
