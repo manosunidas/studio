@@ -25,7 +25,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useState } from 'react';
-import { useUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { collection, serverTimestamp, addDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadString, getDownloadURL } from 'firebase/storage';
 
@@ -72,7 +72,6 @@ export default function AdminPage() {
         const file = data.picture[0];
         const reader = new FileReader();
 
-        reader.readAsDataURL(file);
         reader.onload = async (e) => {
             try {
                 const fileAsDataURL = e.target?.result as string;
@@ -80,15 +79,13 @@ export default function AdminPage() {
                     throw new Error("No se pudo leer el archivo de imagen.");
                 }
                 
-                // 1. Upload image to Firebase Storage
                 const storage = getStorage();
                 const storageRef = ref(storage, `materials/${Date.now()}_${file.name}`);
                 const snapshot = await uploadString(storageRef, fileAsDataURL, 'data_url');
                 const imageUrl = await getDownloadURL(snapshot.ref);
 
-                // 2. Add item to Firestore
                 const materialsCollection = collection(firestore, 'materials');
-                await addDoc(materialsCollection, {
+                const newMaterialData = {
                     title: data.title,
                     description: data.description,
                     category: data.category,
@@ -96,26 +93,47 @@ export default function AdminPage() {
                     gradeLevel: data.gradeLevel,
                     imageUrl: imageUrl,
                     imageHint: 'school supplies',
-                    postedBy: user.uid, // Using UID to comply with security rules
+                    postedBy: user.uid,
                     postedByName: user.displayName,
                     datePosted: serverTimestamp(),
                     isReserved: false,
                     status: 'Disponible',
-                });
+                };
+                
+                addDoc(materialsCollection, newMaterialData)
+                    .then(() => {
+                        toast({
+                            title: '¡Artículo publicado!',
+                            description: 'El artículo ahora está visible para la comunidad.',
+                        });
+                        reset();
+                    })
+                    .catch((error) => {
+                        console.error("Error al crear el artículo:", error);
+                        const permissionError = new FirestorePermissionError({
+                          path: 'materials',
+                          operation: 'create',
+                          requestResourceData: newMaterialData,
+                        });
+                        errorEmitter.emit('permission-error', permissionError);
+                        
+                        toast({
+                            title: 'Error al publicar',
+                            description: 'Hubo un problema al crear el artículo. Revisa los permisos de la base de datos y la consola para más detalles.',
+                            variant: 'destructive',
+                        });
+                    })
+                    .finally(() => {
+                        setIsSubmitting(false);
+                    });
 
-                toast({
-                    title: '¡Artículo publicado!',
-                    description: 'El artículo ahora está visible para la comunidad.',
-                });
-                reset(); // Reset form fields
             } catch (error: any) {
-                 console.error("Error al crear el artículo:", error);
+                 console.error("Error durante la subida de la imagen o preparación de datos:", error);
                 toast({
-                    title: 'Error al publicar',
-                    description: error.message || 'Hubo un problema al crear el artículo. Revisa los permisos de la base de datos.',
+                    title: 'Error al procesar',
+                    description: error.message || 'Hubo un problema al procesar la publicación.',
                     variant: 'destructive',
                 });
-            } finally {
                 setIsSubmitting(false);
             }
         };
@@ -130,11 +148,13 @@ export default function AdminPage() {
              setIsSubmitting(false);
         }
 
+        reader.readAsDataURL(file);
+
     } catch (error: any) {
-        console.error("Error al preparar la publicación:", error);
+        console.error("Error inicial en onSubmit:", error);
         toast({
             title: 'Error inesperado',
-            description: 'Hubo un problema al preparar la publicación. Inténtalo de nuevo.',
+            description: 'Hubo un problema al iniciar la publicación. Inténtalo de nuevo.',
             variant: 'destructive',
         });
         setIsSubmitting(false);

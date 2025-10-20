@@ -46,9 +46,9 @@
           "type": "string",
           "description": "Unique identifier for the material entity."
         },
-        "userId": {
+        "postedBy": {
           "type": "string",
-          "description": "Reference to User. (Relationship: User 1:N Material) The ID of the user who posted the material."
+          "description": "The UID of the user who posted the material. (Reference to User)"
         },
         "title": {
           "type": "string",
@@ -70,20 +70,17 @@
           "type": "string",
           "description": "The condition of the material (e.g., 'New', 'Used - Good', 'Used - Fair')."
         },
-        "photoUrls": {
-          "type": "array",
-          "description": "URLs of the photos of the material.",
-          "items": {
-            "type": "string"
-          }
+        "imageUrl": {
+          "type": "string",
+          "description": "URL of the photo of the material."
         },
         "isReserved": {
           "type": "boolean",
           "description": "Indicates whether the material is currently reserved by a user."
         },
-        "reservedByUserId": {
+        "reservedBy": {
           "type": "string",
-          "description": "Reference to User. The ID of the user who has reserved the material. Null if not reserved."
+          "description": "The email of the user who has reserved the material. Null if not reserved."
         },
         "datePosted": {
           "type": "string",
@@ -93,13 +90,13 @@
       },
       "required": [
         "id",
-        "userId",
+        "postedBy",
         "title",
         "description",
         "category",
         "gradeLevel",
         "condition",
-        "photoUrls",
+        "imageUrl",
         "isReserved",
         "datePosted"
       ]
@@ -254,6 +251,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure is designed to support the Manos Unidas Digital application, facilitating the donation and exchange of school materials and uniforms. The design prioritizes authorization independence, clarity, and scalability.\n\n**Authorization Independence:**\n\n*   **Materials:** The `materials` collection includes the `userId` field, which indicates the owner of the material. The rules use `request.auth.uid == resource.data.userId` for write operations, ensuring only the owner can modify/delete the document. This avoids any need for `get()` calls to parent documents.\n*   **Transactions:** Transactions also include `donorId` and `claimerId`, which are denormalized to ensure rules do not need to read data from other collections to authorize the operation.\n*   **Suggestions:** Suggestions include the `userId` of the user the suggestion is for and the `materialId` of the material suggested. Rules ensure that only the user for whom the suggestion is made can read it.\n\n**Structural Segregation:**\n\n*   User data is stored in a dedicated `/users/{userId}` collection, ensuring private user data is separate from public material listings. This isolation simplifies security rules.\n*   Material listings are stored in the `/materials` collection, allowing for easy listing and searching. Different access needs are handled via rules based on the `userId` field in the material document, indicating the owner.\n\n**Access Modeling:**\n\n*   **Path-Based Ownership:** The `/users/{userId}` collection follows the path-based ownership model, ensuring only the authenticated user can access their data.\n*   **Material Ownership:** The `materials` collection utilizes the `userId` field to determine ownership. Rules enforce that only the user who posted the material can modify or delete it.\n\n**QAPs (Rules are not Filters):**\n\n*   The structure ensures that `list` operations are secure. The rules for the `/materials` collection allow anyone to list materials but restrict write access based on the `userId` field, preventing unauthorized modifications.\n\nThis structure adheres to the core design principles by ensuring authorization independence through denormalization, structural segregation for homogeneous security postures, consistent access modeling, and clear data organization."
+    "reasoning": "The Firestore structure is designed to support the Manos Unidas Digital application, facilitating the donation and exchange of school materials and uniforms. The design prioritizes authorization independence, clarity, and scalability.\n\n**Authorization Independence:**\n\n*   **Materials:** The `materials` collection includes the `postedBy` field, which indicates the owner of the material (by UID). The rules use `request.auth.uid == resource.data.postedBy` for write operations, ensuring only the owner can modify/delete the document. This avoids any need for `get()` calls to parent documents.\n*   **Transactions:** Transactions also include `donorId` and `claimerId`, which are denormalized to ensure rules do not need to read data from other collections to authorize the operation.\n*   **Suggestions:** Suggestions include the `userId` of the user the suggestion is for and the `materialId` of the material suggested. Rules ensure that only the user for whom the suggestion is made can read it.\n\n**Structural Segregation:**\n\n*   User data is stored in a dedicated `/users/{userId}` collection, ensuring private user data is separate from public material listings. This isolation simplifies security rules.\n*   Material listings are stored in the `/materials` collection, allowing for easy listing and searching. Different access needs are handled via rules based on the `postedBy` field in the material document, indicating the owner.\n\n**Access Modeling:**\n\n*   **Path-Based Ownership:** The `/users/{userId}` collection follows the path-based ownership model, ensuring only the authenticated user can access their data.\n*   **Material Ownership:** The `materials` collection utilizes the `postedBy` field to determine ownership. Rules enforce that only the user who posted the material can modify or delete it.\n\n**QAPs (Rules are not Filters):**\n\n*   The structure ensures that `list` operations are secure. The rules for the `/materials` collection allow anyone to list materials but restrict write access based on the `postedBy` field, preventing unauthorized modifications.\n\nThis structure adheres to the core design principles by ensuring authorization independence through denormalization, structural segregation for homogeneous security postures, consistent access modeling, and clear data organization."
   }
 }
