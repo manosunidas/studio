@@ -44,6 +44,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { cn } from '@/lib/utils';
 
 
 const formSchema = z.object({
@@ -568,6 +569,8 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
 
     
 
