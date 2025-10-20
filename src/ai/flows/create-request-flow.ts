@@ -28,15 +28,18 @@ const CreateRequestOutputSchema = z.object({
 export type CreateRequestOutput = z.infer<typeof CreateRequestOutputSchema>;
 
 
-// Helper function to initialize Firebase Admin SDK
+// Helper function to initialize Firebase Admin SDK idempotently
 function initializeFirebaseAdmin() {
     if (!admin.apps.length) {
-        // When deployed to App Hosting, the SDK is automatically initialized.
-        // In other environments, you might need to provide credentials.
+        // When deployed to App Hosting, the SDK is automatically initialized
+        // with the project's configuration.
+        // In other environments (like local dev), you might need to provide credentials
+        // via GOOGLE_APPLICATION_CREDENTIALS environment variable.
         try {
             admin.initializeApp();
         } catch(e) {
-            console.log('admin.initializeApp() failed. This is expected in local dev.', e);
+            // This might happen in some environments, but we can often recover.
+            console.log('admin.initializeApp() failed. This can happen in some environments.', e);
         }
     }
     return admin.firestore();
@@ -60,13 +63,13 @@ export async function createRequest(input: CreateRequestInput): Promise<CreateRe
         }
 
         const newRequestData = {
+            id: newRequestRef.id,
             materialId: validatedInput.materialId,
             nombreCompleto: validatedInput.nombreCompleto,
             direccion: validatedInput.direccion,
             telefono: validatedInput.telefono,
             fechaSolicitud: FieldValue.serverTimestamp(),
             status: 'Pendiente' as const,
-            id: newRequestRef.id,
         };
 
         transaction.create(newRequestRef, newRequestData);
