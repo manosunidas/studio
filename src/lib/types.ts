@@ -37,3 +37,5 @@ export interface Solicitud {
 }
 
 export type User = FirebaseUser;
+
+    

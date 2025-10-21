@@ -9,12 +9,12 @@ import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Heart, User, MapPin, Tag, ArrowLeft, Users } from 'lucide-react';
+import { Heart, User, MapPin, Tag, ArrowLeft, Users, Copy, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { doc, collection, addDoc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc, updateDoc, increment } from 'firebase/firestore';
 
 import {
   Dialog,
@@ -25,6 +25,16 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -43,6 +53,9 @@ export default function ItemPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isRequestDialogOpen, setRequestDialogOpen] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [formDataForMail, setFormDataForMail] = useState<RequestFormData | null>(null);
+
   const { user } = useUser();
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<RequestFormData>({
@@ -57,46 +70,10 @@ export default function ItemPage() {
   const { data: item, isLoading: isItemLoading, refetch } = useDoc<Item>(itemRef);
 
   const handleRequestSubmit: SubmitHandler<RequestFormData> = async (data) => {
-    if (!item || !user || !firestore) return;
-
-    const requestsCollectionRef = collection(firestore, 'materials', id, 'requests');
-    const newRequestData = {
-      ...data,
-      materialId: id,
-      fechaSolicitud: serverTimestamp(),
-      status: 'Pendiente' as const,
-      solicitanteId: user.uid,
-    };
-
-    try {
-      // 1. Add the new request document
-      await addDoc(requestsCollectionRef, newRequestData);
-
-      // 2. Increment the request count on the material
-      await updateDoc(itemRef, {
-        solicitudes: increment(1),
-      });
-
-      toast({
-        title: '¡Solicitud enviada!',
-        description: 'El donante ha sido notificado. Gracias por tu interés.',
-      });
-      reset();
-      setRequestDialogOpen(false);
-      refetch(); // Refresca los datos del artículo para mostrar el contador actualizado
-    } catch (serverError: any) {
-        const permissionError = new FirestorePermissionError({
-            path: requestsCollectionRef.path,
-            operation: 'create',
-            requestResourceData: newRequestData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        toast({
-            variant: 'destructive',
-            title: 'Error al enviar la solicitud',
-            description: 'No se pudieron aplicar los permisos necesarios. Por favor, inténtalo de nuevo.',
-        });
-    }
+    if (!item) return;
+    setFormDataForMail(data);
+    setRequestDialogOpen(false);
+    setShowSuccessDialog(true);
   };
   
   if (isItemLoading || !item) {
@@ -105,6 +82,36 @@ export default function ItemPage() {
   
   const isAvailable = item.status === 'Disponible';
   const isAdmin = user && !user.isAnonymous;
+
+  const mailtoHref = formDataForMail && item ? `mailto:jhelenandreat@gmail.com?subject=${encodeURIComponent(`Solicitud de Artículo: ${item.title}`)}&body=${encodeURIComponent(
+    `Hola,
+    
+Me gustaría solicitar el siguiente artículo:
+- Artículo: ${item.title} (ID: ${item.id})
+
+Mis datos de contacto son:
+- Nombre: ${formDataForMail.nombreCompleto}
+- Dirección/Barrio: ${formDataForMail.direccion}
+- Teléfono: ${formDataForMail.telefono}
+
+Gracias.`
+  )}` : "";
+  
+  const copyToClipboard = () => {
+    if (!formDataForMail || !item) return;
+    const textToCopy = `Hola, me gustaría solicitar el siguiente artículo:
+- Artículo: ${item.title} (ID: ${item.id})
+Mis datos de contacto son:
+- Nombre: ${formDataForMail.nombreCompleto}
+- Dirección/Barrio: ${formDataForMail.direccion}
+- Teléfono: ${formDataForMail.telefono}
+Gracias.`;
+    navigator.clipboard.writeText(textToCopy);
+    toast({
+      title: "Información copiada",
+      description: "Los detalles de la solicitud se han copiado al portapapeles."
+    })
+  }
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-12 md:py-20">
@@ -135,7 +142,7 @@ export default function ItemPage() {
                     <ArrowLeft className="mr-2 h-5 w-5" />
                     Volver
                   </Button>
-                   {isAvailable && !isAdmin && (
+                   {isAvailable && (
                       <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
                         <DialogTrigger asChild>
                            <Button size="lg">
@@ -148,7 +155,7 @@ export default function ItemPage() {
                             <DialogHeader>
                               <DialogTitle>Solicitar este artículo</DialogTitle>
                               <DialogDescription>
-                                Completa tus datos de contacto para que el donante pueda comunicarse contigo.
+                                Completa tus datos para generar la información de contacto para el donante.
                               </DialogDescription>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
@@ -171,7 +178,7 @@ export default function ItemPage() {
                             <DialogFooter>
                               <Button type="button" variant="outline" onClick={() => setRequestDialogOpen(false)}>Cancelar</Button>
                               <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting ? 'Enviando...' : 'Enviar Solicitud'}
+                                {isSubmitting ? 'Generando...' : 'Generar Información'}
                               </Button>
                             </DialogFooter>
                           </form>
@@ -228,6 +235,38 @@ export default function ItemPage() {
           )}
         </div>
       </div>
+      
+      <AlertDialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¡Información Generada!</AlertDialogTitle>
+            <AlertDialogDescription>
+              Por favor, contacta al donante (administrador) para coordinar la entrega. Puedes enviarle un correo con la información de tu solicitud o copiarla para enviarla por otro medio.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {formDataForMail && item && (
+             <div className="p-4 bg-muted rounded-md text-sm">
+              <p><strong>Artículo:</strong> {item.title}</p>
+              <p><strong>Nombre:</strong> {formDataForMail.nombreCompleto}</p>
+              <p><strong>Dirección:</strong> {formDataForMail.direccion}</p>
+              <p><strong>Teléfono:</strong> {formDataForMail.telefono}</p>
+            </div>
+          )}
+          <AlertDialogFooter className="sm:justify-start gap-2">
+             <AlertDialogAction asChild className="w-full sm:w-auto">
+               <a href={mailtoHref}>
+                <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
+               </a>
+             </AlertDialogAction>
+             <Button variant="secondary" onClick={copyToClipboard} className="w-full sm:w-auto">
+                <Copy className="mr-2 h-4 w-4" /> Copiar Información
+             </Button>
+            <Button variant="outline" onClick={() => setShowSuccessDialog(false)} className="w-full sm:w-auto mt-2 sm:mt-0">Cerrar</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }
+    
