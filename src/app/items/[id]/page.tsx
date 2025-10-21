@@ -14,7 +14,7 @@ import { Heart, User, MapPin, Tag, ArrowLeft, Users, Copy, Mail, LogIn } from 'l
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, addDoc, updateDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { incrementSolicitudes } from '@/app/actions';
 
@@ -103,22 +103,11 @@ export default function ItemPage() {
 
     } catch (error: any) {
         console.error("Error al procesar la solicitud: ", error);
-        
-        // Let the global error handler catch permission errors
-        if (error.name === 'FirebaseError') {
-            const permissionError = new FirestorePermissionError({
-                path: requestsCollectionRef.path,
-                operation: 'create',
-                requestResourceData: newRequestData,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        } else {
-             toast({
-                variant: 'destructive',
-                title: 'Error al enviar la solicitud',
-                description: error.message || 'Ocurrió un problema. Inténtalo de nuevo.',
-            });
-        }
+        toast({
+          variant: 'destructive',
+          title: 'Error al enviar la solicitud',
+          description: error.message || 'Ocurrió un problema. Inténtalo de nuevo.',
+        });
     }
   };
   
