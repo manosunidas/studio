@@ -82,9 +82,8 @@ export default function ItemPage() {
         solicitanteId: user.uid,
     };
 
-    try {
-        await addDoc(requestsCollectionRef, newRequestData);
-        
+    addDoc(requestsCollectionRef, newRequestData)
+    .then(async () => {
         // After successfully creating the request, call the server action to sync the count.
         const result = await incrementSolicitudes(item.id);
         
@@ -101,8 +100,8 @@ export default function ItemPage() {
         setRequestDialogOpen(false);
         reset();
         refetch(); // Refresh item data to show the updated count.
-
-    } catch (error: any) {
+    })
+    .catch((error: any) => {
         console.error("Error al procesar la solicitud: ", error);
         
         // Emit a permission error for standardized handling if it's a Firestore security rule issue.
@@ -116,9 +115,9 @@ export default function ItemPage() {
         toast({
           variant: 'destructive',
           title: 'Error al enviar la solicitud',
-          description: error.message || 'Ocurrió un problema. Por favor, inténtalo de nuevo.',
+          description: 'No tienes permisos para realizar esta acción o ha ocurrido un problema.',
         });
-    }
+    });
   };
   
   if (isItemLoading || isUserLoading) {
