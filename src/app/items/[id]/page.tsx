@@ -7,10 +7,12 @@ import { useRouter, useParams } from 'next/navigation';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Heart, Tag, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { Heart, Tag, ArrowLeft, ShieldAlert, Calendar } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
@@ -217,6 +219,18 @@ export default function ItemPage() {
     );
   }
 
+  const getFormattedDate = () => {
+    if (item.datePosted && typeof item.datePosted.toDate === 'function') {
+      try {
+        return format(item.datePosted.toDate(), "dd 'de' MMMM 'de' yyyy", { locale: es });
+      } catch (error) {
+        console.error("Error formatting date:", error);
+        return 'Fecha no disponible';
+      }
+    }
+    return 'Fecha no disponible';
+  };
+
   return (
     <div className="container mx-auto px-4 md:px-6 py-12 md:py-20">
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
@@ -248,9 +262,10 @@ export default function ItemPage() {
                   </Button>
                 </div>
             </div>
-            <p className="text-lg text-muted-foreground mt-2">
-              Publicado por <span className="font-semibold text-primary">{item.postedByName || 'Admin'}</span>
-            </p>
+            <div className="flex items-center text-lg text-muted-foreground mt-2">
+                <Calendar className="mr-2 h-5 w-5" />
+                <span>Publicado el {getFormattedDate()}</span>
+            </div>
           </div>
             <div className="mt-auto">
              {renderRequestButton()}
