@@ -57,7 +57,7 @@ export default function ItemPage() {
   const { data: item, isLoading: isItemLoading, refetch } = useDoc<Item>(itemRef);
 
   const handleRequestSubmit: SubmitHandler<RequestFormData> = async (data) => {
-    if (!item || !user) {
+    if (!item || !user || !firestore) {
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -72,27 +72,26 @@ export default function ItemPage() {
       materialId: item.id,
       fechaSolicitud: serverTimestamp(),
       status: 'Pendiente' as const,
-      solicitanteId: user.uid, // Use the (anonymous) user's UID
+      solicitanteId: user.uid,
     };
 
     try {
-        // 1. Create the request document
-        const newRequestRef = await addDoc(requestsCollectionRef, newRequestData);
+      const newRequestRef = await addDoc(requestsCollectionRef, newRequestData);
 
-        // 2. Update the material's request count
-        await updateDoc(itemRef, {
-            solicitudes: (item.solicitudes || 0) + 1
-        });
+      // We only update the counter if the request was successful
+      await updateDoc(itemRef, {
+        solicitudes: (item.solicitudes || 0) + 1,
+      });
 
-        toast({
-            title: '¡Solicitud enviada!',
-            description: 'Tu solicitud ha sido registrada. El donante será notificado.',
-        });
-        setRequestDialogOpen(false);
-        reset();
-        refetch(); // Refetch item to show updated request count
+      toast({
+        title: '¡Solicitud enviada!',
+        description: 'Tu solicitud ha sido registrada. El donante será notificado.',
+      });
+      setRequestDialogOpen(false);
+      reset();
+      refetch();
     } catch (serverError: any) {
-        console.error("Error creating request:", serverError);
+        // This is the new, detailed error handling logic.
         const permissionError = new FirestorePermissionError({
             path: requestsCollectionRef.path,
             operation: 'create',
@@ -100,10 +99,11 @@ export default function ItemPage() {
         });
         errorEmitter.emit('permission-error', permissionError);
 
+        // A user-facing toast is still helpful, but the detailed error is for debugging.
         toast({
             variant: "destructive",
             title: "Error al enviar la solicitud",
-            description: serverError.message || "No se pudo registrar la solicitud. Por favor, inténtelo de nuevo más tarde.",
+            description: "No se pudo registrar la solicitud. Por favor, inténtelo de nuevo.",
         });
     }
   };
@@ -113,7 +113,6 @@ export default function ItemPage() {
   }
   
   const isAvailable = item.status === 'Disponible';
-  // A user can request if the item is available and the user session is ready
   const canRequest = isAvailable && !isUserLoading;
 
   return (
