@@ -373,39 +373,30 @@ function EditItemForm({ item, onFormSubmit, onCancel }: { item: Item, onFormSubm
 }
 
 
-function ItemRequests({ item, requestFilter, onAction }: { item: Item, requestFilter: Solicitud['status'] | 'all', onAction: () => void }) {
+function ItemRequests({ item, onAction }: { item: Item, onAction: () => void }) {
   const firestore = useFirestore();
   const { toast } = useToast();
 
   const requestsQuery = useMemoFirebase(() => {
     if (!firestore || !item) return null;
-    let q = query(collection(firestore, 'materials', item.id, 'requests'));
-    if (requestFilter !== 'all') {
-      q = query(q, where('status', '==', requestFilter));
-    }
-     // Show pending requests for assigned items as well.
-    if(item.status === 'Asignado'){
-        q = query(collection(firestore, 'materials', item.id, 'requests'));
-    }
-
-    return q;
-  }, [firestore, item, requestFilter]);
+    return query(collection(firestore, 'materials', item.id, 'requests'));
+  }, [firestore, item]);
 
   const { data: requests, isLoading } = useCollection<Solicitud>(requestsQuery);
 
-  const assignItem = async (solicitudId: string) => {
+  const assignItem = async (solicitud: Solicitud) => {
     if (!firestore || !item) return;
 
     const itemRef = doc(firestore, 'materials', item.id);
     const updateData = {
       status: 'Asignado' as const,
-      asignadoA: solicitudId,
+      asignadoA: solicitud.id,
     };
     
     updateDoc(itemRef, updateData).then(() => {
         toast({
           title: 'Artículo Asignado',
-          description: `El artículo ha sido asignado a la solicitud ${solicitudId.substring(0,5)}...`,
+          description: `El artículo ha sido asignado a ${solicitud.nombreCompleto}.`,
         });
         onAction();
     }).catch((serverError) => {
@@ -447,19 +438,17 @@ function ItemRequests({ item, requestFilter, onAction }: { item: Item, requestFi
     if(!firestore || !item) return;
     
     const requestRef = doc(firestore, 'materials', item.id, 'requests', solicitudId);
-    const updateData = { status: 'Rechazada' as const };
-
-    updateDoc(requestRef, updateData).then(() => {
+    
+    deleteDoc(requestRef).then(() => {
         toast({
-            title: 'Solicitud Rechazada',
-            description: 'La solicitud ha sido marcada como rechazada.'
+            title: 'Solicitud Eliminada',
+            description: 'La solicitud ha sido eliminada permanentemente.'
         });
         onAction();
     }).catch((e) => {
         const permissionError = new FirestorePermissionError({
             path: requestRef.path,
-            operation: 'update',
-            requestResourceData: updateData
+            operation: 'delete',
         });
         errorEmitter.emit('permission-error', permissionError);
     });
@@ -467,25 +456,50 @@ function ItemRequests({ item, requestFilter, onAction }: { item: Item, requestFi
   
   if (isLoading) return <p className="text-sm text-center text-muted-foreground py-4">Cargando solicitudes...</p>
   if (!requests || requests.length === 0) {
-    if (requestFilter === 'all' || requestFilter === 'Pendiente') return <p className="text-sm text-center text-muted-foreground py-4">No hay solicitudes pendientes para este artículo.</p>;
-    return null;
+    return <p className="text-sm text-center text-muted-foreground py-4">No hay solicitudes pendientes para este artículo.</p>;
   }
 
-  const finalRequests = item.status === 'Asignado'
-    ? requests.filter(r => r.status === 'Pendiente' || r.id === item.asignadoA)
-    : requests;
-    
-  if (finalRequests.length === 0) {
-     return <p className="text-sm text-center text-muted-foreground py-4">No hay solicitudes para mostrar.</p>;
-  }
+  const assignedRequest = requests.find(r => r.id === item.asignadoA);
+  const pendingRequests = requests.filter(r => r.id !== item.asignadoA);
 
   return (
     <div className="space-y-4">
-      {finalRequests.map(request => (
-        <Card key={request.id} className={cn(
-            "bg-muted/50",
-            item.asignadoA === request.id && "border-primary ring-1 ring-primary"
-        )}>
+      {item.status === 'Asignado' && assignedRequest && (
+         <Card key={assignedRequest.id} className="border-primary ring-1 ring-primary">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Asignado a:</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <p><strong>Solicitante:</strong> {assignedRequest.nombreCompleto}</p>
+              <p className="text-sm text-muted-foreground"><strong>Dirección:</strong> {assignedRequest.direccion}</p>
+              <p className="text-sm text-muted-foreground"><strong>Teléfono:</strong> {assignedRequest.telefono}</p>
+               <p className="text-xs text-muted-foreground mt-1"><strong>ID Solicitud:</strong> {assignedRequest.id}</p>
+            </div>
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="destructive" className="self-end sm:self-center">Desasignar</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Desasignar este artículo?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      El artículo volverá a estar "Disponible" y podrás asignarlo a otra persona. La solicitud actual será eliminada.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={unassignItem}>Confirmar</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
+        </Card>
+      )}
+
+      {pendingRequests.length > 0 && <h4 className="font-semibold pt-4">Otras Solicitudes Pendientes:</h4>}
+      {pendingRequests.map(request => (
+        <Card key={request.id} className="bg-muted/50">
           <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <p><strong>Solicitante:</strong> {request.nombreCompleto}</p>
@@ -494,8 +508,7 @@ function ItemRequests({ item, requestFilter, onAction }: { item: Item, requestFi
                <p className="text-xs text-muted-foreground mt-1"><strong>ID Solicitud:</strong> {request.id}</p>
             </div>
             <div className='flex gap-2 self-end sm:self-center'>
-             {item.status === 'Disponible' && request.status === 'Pendiente' && (
-                <>
+             {item.status === 'Disponible' && (
                 <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button size="sm">Asignar</Button>
@@ -504,53 +517,33 @@ function ItemRequests({ item, requestFilter, onAction }: { item: Item, requestFi
                       <AlertDialogHeader>
                         <AlertDialogTitle>¿Confirmar asignación?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Esta acción marcará el artículo como "Asignado" a este solicitante y lo retirará del catálogo público. Esta acción no se puede deshacer.
+                          Esta acción marcará el artículo como "Asignado" a este solicitante y lo retirará del catálogo público.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => assignItem(request.id)}>Confirmar Asignación</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="outline">Rechazar</Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>¿Rechazar esta solicitud?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Esta acción marcará la solicitud como 'Rechazada' y ya no se mostrará como pendiente. No se puede deshacer.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => rejectRequest(request.id)} className='bg-destructive text-destructive-foreground hover:bg-destructive/90'>Confirmar Rechazo</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-                </>
-             )}
-             {item.status === 'Asignado' && item.asignadoA === request.id && (
-                 <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="destructive">Desasignar</Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>¿Desasignar este artículo?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          El artículo volverá a estar "Disponible" y podrás asignarlo a otra persona.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={unassignItem}>Confirmar</AlertDialogAction>
+                        <AlertDialogAction onClick={() => assignItem(request)}>Confirmar Asignación</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
              )}
+              <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="outline">Rechazar</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Rechazar esta solicitud?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta acción eliminará la solicitud permanentemente. No se puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => rejectRequest(request.id)} className='bg-destructive text-destructive-foreground hover:bg-destructive/90'>Confirmar Rechazo</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+              </AlertDialog>
              </div>
           </CardContent>
         </Card>
@@ -568,7 +561,7 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
     const assignedItems = allAdminItems?.filter(item => item.status === 'Asignado') || [];
     const pendingItems = allAdminItems?.filter(item => item.status === 'Disponible' && item.solicitudes > 0) || [];
     
-    const renderAccordion = (items: Item[], requestFilter: Solicitud['status'] | 'all') => {
+    const renderAccordion = (items: Item[]) => {
         if (items.length === 0) {
             return <p className="text-center text-muted-foreground py-8">No hay elementos en esta categoría.</p>;
         }
@@ -597,7 +590,7 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent>
-                                <ItemRequests item={item} requestFilter={requestFilter} onAction={onAction}/>
+                                <ItemRequests item={item} onAction={onAction}/>
                             </AccordionContent>
                         </AccordionItem>
                     )
@@ -619,7 +612,7 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
                         <CardDescription>Artículos con solicitudes nuevas que requieren tu atención.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                       {renderAccordion(pendingItems, 'Pendiente')}
+                       {renderAccordion(pendingItems)}
                     </CardContent>
                 </Card>
             </TabsContent>
@@ -630,7 +623,7 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
                         <CardDescription>Historial de artículos que ya han sido donados.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {renderAccordion(assignedItems, 'all')}
+                        {renderAccordion(assignedItems)}
                     </CardContent>
                 </Card>
             </TabsContent>

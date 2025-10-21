@@ -28,8 +28,7 @@ export type SolicitudStatus = 'Pendiente' | 'Rechazada';
 export interface Solicitud {
   id: string;
   materialId: string;
-  solicitanteId: string; // UID of the user or 'public_request' for non-authed
-  emailSolicitante?: string; // Email of the user, if available
+  solicitanteId: string; // UID of the user who made the request
   fechaSolicitud: Timestamp;
   nombreCompleto: string;
   direccion: string;
