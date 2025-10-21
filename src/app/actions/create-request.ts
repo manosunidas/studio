@@ -31,7 +31,7 @@ export async function createRequest(input: CreateRequestInput) {
         throw new Error('El artículo ya no existe.');
     }
 
-    const newRequest = {
+    const newRequestData = {
       ...requestData,
       materialId,
       fechaSolicitud: FieldValue.serverTimestamp(),
@@ -40,7 +40,7 @@ export async function createRequest(input: CreateRequestInput) {
     };
 
     // 1. Create the request document
-    const newRequestRef = await requestsCollectionRef.add(newRequest);
+    const newRequestRef = await requestsCollectionRef.add(newRequestData);
 
     // 2. Update the material's request count
     await materialRef.update({
