@@ -27,8 +27,8 @@ export async function incrementSolicitudes(materialId: string) {
 
     console.log(`Successfully synchronized solicitues count for material: ${materialId} to ${currentRequestCount}`);
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error syncing solicitues for material ${materialId}:`, error);
-    return { success: false, error: 'Failed to update solicitues count.' };
+    return { success: false, error: error.message || 'Failed to update solicitues count.' };
   }
 }
