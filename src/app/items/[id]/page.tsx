@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useActionState } from 'react';
 import Image from 'next/image';
 import { useRouter, useParams } from 'next/navigation';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useFormStatus } from 'react-dom';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,7 +53,7 @@ export default function ItemPage() {
   const { toast } = useToast();
   const [isRequestDialogOpen, setRequestDialogOpen] = useState(false);
   
-  const [state, formAction] = useFormState(createRequest, initialState);
+  const [state, formAction] = useActionState(createRequest, initialState);
 
   const itemRef = useMemoFirebase(() => {
     if (!firestore || !id) return null;
@@ -85,7 +85,7 @@ export default function ItemPage() {
   
   const isAdmin = user?.email === 'jhelenandreat@gmail.com';
   const isAvailable = item.status === 'Disponible';
-  const canRequest = isAvailable && !isAdmin;
+  const canRequest = isAvailable;
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-12 md:py-20">
