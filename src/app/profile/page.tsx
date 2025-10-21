@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller, useForm as useGenericForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -51,6 +51,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { incrementSolicitudes } from '@/app/actions';
 
 
 const itemFormSchema = z.object({
@@ -406,15 +407,12 @@ function ItemRequests({ item, onAction }: { item: Item, onAction: () => void }) 
         materialId: item.id,
         fechaSolicitud: serverTimestamp(),
         status: 'Pendiente' as const,
-        solicitanteId: user.uid, // Admin is creating this on behalf of someone
+        solicitanteId: 'admin', // Admin is creating this on behalf of someone
     };
 
     addDoc(requestsCollectionRef, newRequestData)
-      .then(() => {
-        const itemRef = doc(firestore, 'materials', item.id);
-        updateDoc(itemRef, { solicitudes: (item.solicitudes || 0) + 1 });
-      })
-      .then(() => {
+      .then(async () => {
+          await incrementSolicitudes(item.id);
           toast({
               title: '¡Solicitud registrada!',
               description: 'La solicitud ha sido añadida al artículo.',
@@ -488,15 +486,13 @@ function ItemRequests({ item, onAction }: { item: Item, onAction: () => void }) 
     
     const requestRef = doc(firestore, 'materials', item.id, 'requests', solicitudId);
     
-    deleteDoc(requestRef).then(() => {
-        const itemRef = doc(firestore, 'materials', item.id);
-        updateDoc(itemRef, { solicitudes: Math.max(0, (item.solicitudes || 1) - 1) });
-    }).then(() => {
+    deleteDoc(requestRef).then(async () => {
+        await incrementSolicitudes(item.id);
         toast({
             title: 'Solicitud Eliminada',
             description: 'La solicitud ha sido eliminada permanentemente.'
         });
-        onAction();
+        onAction(); // This will refetch everything
     }).catch((e) => {
         const permissionError = new FirestorePermissionError({
             path: requestRef.path,
@@ -589,7 +585,7 @@ function ItemRequests({ item, onAction }: { item: Item, onAction: () => void }) 
                     <AlertDialogHeader>
                       <AlertDialogTitle>¿Rechazar esta solicitud?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Esta acción eliminará la solicitud permanentemente y disminuirá el contador de solicitudes del artículo.
+                        Esta acción eliminará la solicitud permanentemente y actualizará el contador de solicitudes del artículo.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -727,16 +723,14 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading, isAdmin } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
 
-  const isAdmin = user?.email === 'jhelenandreat@gmail.com';
-
   useEffect(() => {
-    if (!isUserLoading && (!user || user.isAnonymous)) {
+    if (!isUserLoading && (!user || user.isAnonymous || !isAdmin)) {
       toast({
         title: 'Acceso denegado',
         description: 'Debes iniciar sesión como administrador para ver esta página.',
@@ -744,7 +738,7 @@ export default function ProfilePage() {
       });
       router.push('/login');
     }
-  }, [user, isUserLoading, router, toast]);
+  }, [user, isUserLoading, isAdmin, router, toast]);
 
   const userItemsQuery = useMemoFirebase(() => {
     if (!firestore || !isAdmin) return null;
@@ -772,9 +766,9 @@ export default function ProfilePage() {
     });
   }
 
-  const handleAction = () => {
+  const handleAction = useCallback(() => {
     setRefreshKey(prev => prev + 1);
-  };
+  }, []);
   
   const handleEdit = (item: Item) => {
     setEditingItem(item);
@@ -817,15 +811,17 @@ export default function ProfilePage() {
         <Button variant="outline" className="ml-auto" onClick={() => toast({ title: 'Próximamente', description: '¡Pronto podrás editar tu perfil!'})}>Editar Perfil</Button>
       </div>
 
-      <Tabs defaultValue="post-item" onValueChange={() => setRefreshKey(prev => prev + 1)}>
+      <Tabs defaultValue="requests" onValueChange={() => handleAction()}>
         <TabsList className="grid w-full grid-cols-3 max-w-3xl mx-auto">
-          <TabsTrigger value="post-item">Publicar</TabsTrigger>
-          <TabsTrigger value="listings">Publicaciones</TabsTrigger>
           <TabsTrigger value="requests">Solicitudes</TabsTrigger>
+          <TabsTrigger value="listings">Publicaciones</TabsTrigger>
+          <TabsTrigger value="post-item">Publicar Nuevo</TabsTrigger>
         </TabsList>
-        <TabsContent value="post-item" className="mt-6">
-          <PostItemForm onFormSubmit={handleAction} />
+
+        <TabsContent value="requests" className="mt-6">
+           <ItemRequestHistory allAdminItems={userItems} isLoading={userItemsLoading} error={userItemsError} onAction={handleAction}/>
         </TabsContent>
+
         <TabsContent value="listings">
           <Card>
             <CardHeader>
@@ -846,9 +842,11 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="requests" className="mt-6">
-           <ItemRequestHistory allAdminItems={userItems} isLoading={userItemsLoading} error={userItemsError} onAction={handleAction}/>
+
+        <TabsContent value="post-item" className="mt-6">
+          <PostItemForm onFormSubmit={handleAction} />
         </TabsContent>
+
       </Tabs>
       
       <Dialog open={!!editingItem} onOpenChange={(isOpen) => !isOpen && setEditingItem(null)}>

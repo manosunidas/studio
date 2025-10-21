@@ -4,17 +4,18 @@ import admin from 'firebase-admin';
 
 /**
  * Initializes and returns the Firebase Admin App instance.
- * Ensures that initialization only happens once.
+ * This is the recommended pattern for server-side environments to prevent re-initialization.
  */
 export async function getAdminApp() {
-    // If the app is already initialized, return it.
-    if (admin.apps.length > 0) {
-        return admin.app();
+    // If the default app is already initialized, return it.
+    if (admin.apps.length > 0 && admin.apps[0]) {
+        return admin.apps[0];
     }
 
     try {
         // Initialize the app without explicit credentials.
-        // It will automatically use the service account from the environment.
+        // In Cloud Workstations and other Google Cloud environments,
+        // the SDK automatically uses the service account from the environment.
         return admin.initializeApp();
     } catch (e: any) {
         console.error("Failed to initialize Firebase Admin SDK automatically.", e);

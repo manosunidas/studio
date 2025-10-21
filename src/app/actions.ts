@@ -1,12 +1,13 @@
 'use server';
 
 import { getAdminApp } from '@/firebase/admin';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore } from 'firebase-admin/firestore';
 
 export async function incrementSolicitudes(materialId: string) {
   if (!materialId) {
-    console.error("No materialId provided to incrementSolicitudes server action.");
-    return { success: false, error: "No materialId provided." };
+    const errorMsg = "No materialId provided to incrementSolicitudes server action.";
+    console.error(errorMsg);
+    return { success: false, error: errorMsg };
   }
   
   try {
@@ -15,7 +16,8 @@ export async function incrementSolicitudes(materialId: string) {
     
     const materialRef = db.collection('materials').doc(materialId);
     
-    // Instead of incrementing, we synchronize the count. This is more robust.
+    // This is a synchronization action, not just an increment.
+    // It makes the count resilient to any inconsistencies.
     const requestsCollectionRef = materialRef.collection('requests');
     const requestsSnapshot = await requestsCollectionRef.get();
     const currentRequestCount = requestsSnapshot.size;
@@ -26,9 +28,10 @@ export async function incrementSolicitudes(materialId: string) {
     });
 
     console.log(`Successfully synchronized solicitues count for material: ${materialId} to ${currentRequestCount}`);
-    return { success: true };
+    return { success: true, count: currentRequestCount };
   } catch (error: any) {
     console.error(`Error syncing solicitues for material ${materialId}:`, error);
+    // Return the specific error message to the client for better debugging
     return { success: false, error: error.message || 'Failed to update solicitues count.' };
   }
 }

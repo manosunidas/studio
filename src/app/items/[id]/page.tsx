@@ -10,12 +10,12 @@ import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Heart, User, MapPin, Tag, ArrowLeft, Users, Copy, Mail, LogIn } from 'lucide-react';
+import { Heart, User, MapPin, Tag, ArrowLeft, Users, Copy, Mail, LogIn, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, addDoc, updateDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { doc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { incrementSolicitudes } from '@/app/actions';
 
 import {
@@ -49,7 +49,7 @@ export default function ItemPage() {
   const { toast } = useToast();
   const [isRequestDialogOpen, setRequestDialogOpen] = useState(false);
 
-  const { user, isAdmin } = useUser();
+  const { user, isAdmin, isUserLoading } = useUser();
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue } = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),
@@ -85,10 +85,11 @@ export default function ItemPage() {
     try {
         await addDoc(requestsCollectionRef, newRequestData);
         
-        // Call server action and wait for it to complete
+        // After successfully creating the request, call the server action to sync the count.
         const result = await incrementSolicitudes(item.id);
         
         if (!result.success) {
+            // If the server action fails, we throw an error to be caught by the catch block.
             throw new Error(result.error || 'No se pudo actualizar el contador.');
         }
 
@@ -99,20 +100,33 @@ export default function ItemPage() {
         
         setRequestDialogOpen(false);
         reset();
-        refetch(); // Refresca los datos del artículo para mostrar el contador actualizado
+        refetch(); // Refresh item data to show the updated count.
 
     } catch (error: any) {
         console.error("Error al procesar la solicitud: ", error);
+        
+        // Emit a permission error for standardized handling if it's a Firestore security rule issue.
+        const permissionError = new FirestorePermissionError({
+            path: requestsCollectionRef.path,
+            operation: 'create',
+            requestResourceData: newRequestData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        
         toast({
           variant: 'destructive',
           title: 'Error al enviar la solicitud',
-          description: error.message || 'Ocurrió un problema. Inténtalo de nuevo.',
+          description: error.message || 'Ocurrió un problema. Por favor, inténtalo de nuevo.',
         });
     }
   };
   
-  if (isItemLoading || !item) {
+  if (isItemLoading || isUserLoading) {
     return <div className="container text-center py-20">Cargando artículo...</div>;
+  }
+
+  if (!item) {
+    return <div className="container text-center py-20">Artículo no encontrado.</div>;
   }
   
   const isAvailable = item.status === 'Disponible';
@@ -139,7 +153,7 @@ export default function ItemPage() {
                 <TooltipTrigger asChild>
                     <div className="inline-block"> 
                         <Button size="lg" disabled>
-                            <Heart className="mr-2 h-5 w-5" />
+                            <ShieldAlert className="mr-2 h-5 w-5" />
                             Solicitar Artículo
                         </Button>
                     </div>
@@ -226,7 +240,6 @@ export default function ItemPage() {
                     <ArrowLeft className="mr-2 h-5 w-5" />
                     Volver
                   </Button>
-                  {renderRequestButton()}
                 </div>
             </div>
             <p className="text-lg text-muted-foreground mt-2">
@@ -237,6 +250,9 @@ export default function ItemPage() {
                 <span className="font-semibold">{item.solicitudes || 0} personas han solicitado este artículo.</span>
             </div>
           </div>
+            <div className="mt-auto">
+             {renderRequestButton()}
+            </div>
 
           <p className="text-base leading-relaxed">
             {item.description}
