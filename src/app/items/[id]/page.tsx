@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
 import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { doc, addDoc, updateDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { incrementSolicitudes } from '@/app/actions';
 
 import {
   Dialog,
@@ -81,18 +82,8 @@ export default function ItemPage() {
     };
     
     addDoc(requestsCollectionRef, newRequestData).then(() => {
-        const itemDocRef = doc(firestore, 'materials', item.id);
-        const updateData = {
-          solicitudes: (item.solicitudes || 0) + 1,
-        };
-        updateDoc(itemDocRef, updateData).catch(serverError => {
-            const permissionError = new FirestorePermissionError({
-                path: itemDocRef.path,
-                operation: 'update',
-                requestResourceData: updateData,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
+        // Now, call the server action to increment the count
+        incrementSolicitudes(item.id);
 
         toast({
             title: '¡Solicitud Enviada!',
