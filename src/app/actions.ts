@@ -3,10 +3,6 @@
 import { getAdminApp } from '@/firebase/admin';
 import { getFirestore, increment } from 'firebase-admin/firestore';
 
-// Initialize admin app
-getAdminApp();
-const db = getFirestore();
-
 export async function incrementSolicitudes(materialId: string) {
   if (!materialId) {
     console.error("No materialId provided to incrementSolicitudes server action.");
@@ -14,6 +10,9 @@ export async function incrementSolicitudes(materialId: string) {
   }
   
   try {
+    // Initialize admin app
+    await getAdminApp();
+    const db = getFirestore();
     const materialRef = db.collection('materials').doc(materialId);
     await materialRef.update({
       solicitudes: increment(1)

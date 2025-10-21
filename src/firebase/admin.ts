@@ -4,7 +4,7 @@ import admin from 'firebase-admin';
 
 const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
 
-export const getAdminApp = () => {
+export const getAdminApp = async () => {
     if (admin.apps.length > 0) {
         return admin.app();
     }
