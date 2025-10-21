@@ -13,8 +13,8 @@ import { Heart, User, MapPin, Tag, ArrowLeft, Mail, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { doc, collection, addDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 import { createRequest } from '@/app/actions/create-request';
 
 import {
@@ -41,7 +41,6 @@ export default function ItemPage() {
   const params = useParams();
   const id = params.id as string;
   const firestore = useFirestore();
-  const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
   const [isRequestDialogOpen, setRequestDialogOpen] = useState(false);
