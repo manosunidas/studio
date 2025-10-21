@@ -72,11 +72,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
            const isAdmin = firebaseUser.email === 'jhelenandreat@gmail.com';
           setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null, isAdmin });
         } else {
-          // If no user is logged in, sign in anonymously to get a temporary ID
-          signInAnonymously(auth).catch((error) => {
-            console.error("FirebaseProvider: Anonymous sign-in failed:", error);
-            setUserAuthState({ user: null, isUserLoading: false, userError: error, isAdmin: false });
-          });
+          // If no user is logged in, the user is null. No anonymous sign-in.
+          setUserAuthState({ user: null, isUserLoading: false, userError: null, isAdmin: false });
         }
       },
       (error) => { // Auth listener error
