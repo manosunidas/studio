@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -103,7 +104,7 @@ export default function ItemPage() {
     } catch (error: any) {
         console.error("Error al procesar la solicitud: ", error);
         
-        // Check if it is a Firestore permission error
+        // Let the global error handler catch permission errors
         if (error.name !== 'FirebaseError') {
              const permissionError = new FirestorePermissionError({
                 path: requestsCollectionRef.path,
@@ -126,14 +127,14 @@ export default function ItemPage() {
   }
   
   const isAvailable = item.status === 'Disponible';
-  const isUserAnonymous = !user || user.isAnonymous;
+  const isUserLoggedIn = user && !user.isAnonymous;
 
   const renderRequestButton = () => {
     if (!isAvailable) {
       return null;
     }
     
-    if (isUserAnonymous) {
+    if (!isUserLoggedIn) {
       return (
         <Button size="lg" onClick={() => router.push('/login')}>
           <LogIn className="mr-2 h-5 w-5" />
