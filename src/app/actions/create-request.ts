@@ -25,6 +25,11 @@ export async function createRequest(input: CreateRequestInput) {
 
     const materialRef = firestore.collection('materials').doc(materialId);
     const requestsCollectionRef = materialRef.collection('requests');
+    
+    const materialDoc = await materialRef.get();
+    if (!materialDoc.exists) {
+        throw new Error('El artículo ya no existe.');
+    }
 
     const newRequest = {
       ...requestData,
@@ -34,25 +39,17 @@ export async function createRequest(input: CreateRequestInput) {
       solicitanteId: 'public_request',
     };
 
-    const transactionResult = await firestore.runTransaction(async (transaction) => {
-      const materialDoc = await transaction.get(materialRef);
-      if (!materialDoc.exists) {
-        throw new Error('El artículo ya no existe.');
-      }
-      
-      const newRequestRef = requestsCollectionRef.doc();
-      transaction.set(newRequestRef, newRequest);
-      
-      transaction.update(materialRef, {
+    // 1. Create the request document
+    const newRequestRef = await requestsCollectionRef.add(newRequest);
+
+    // 2. Update the material's request count
+    await materialRef.update({
         solicitudes: FieldValue.increment(1)
-      });
-      
-      return newRequestRef.id;
     });
 
     return {
       success: true,
-      requestId: transactionResult,
+      requestId: newRequestRef.id,
       message: 'Solicitud creada con éxito.',
     };
   } catch (error: any) {
