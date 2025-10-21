@@ -106,7 +106,7 @@ export default function ItemPage() {
   }
   
   const isAvailable = item.status === 'Disponible';
-  const canRequest = isAvailable && !isUserLoading;
+  const canRequest = isAvailable;
 
   return (
     <>
@@ -145,7 +145,7 @@ export default function ItemPage() {
                           <DialogTrigger asChild>
                              <Button size="lg" disabled={!canRequest}>
                               <Heart className="mr-2 h-5 w-5" />
-                              {isUserLoading ? 'Verificando...' : 'Solicitar Artículo'}
+                              Solicitar Artículo
                             </Button>
                           </DialogTrigger>
                           <DialogContent className="sm:max-w-[425px]">
@@ -153,7 +153,7 @@ export default function ItemPage() {
                               <DialogHeader>
                                 <DialogTitle>Solicitar este artículo</DialogTitle>
                                 <DialogDescription>
-                                  Completa tus datos para que el donante pueda contactarte. Esta información se mostrará al final.
+                                  Completa tus datos. Esta información se mostrará al final para que la compartas con el donante.
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="grid gap-4 py-4">
@@ -176,7 +176,7 @@ export default function ItemPage() {
                               <DialogFooter>
                                 <Button type="button" variant="outline" onClick={() => setRequestDialogOpen(false)}>Cancelar</Button>
                                 <Button type="submit" disabled={isSubmitting}>
-                                  {isSubmitting ? 'Generando...' : 'Generar Solicitud'}
+                                  {isSubmitting ? 'Generando...' : 'Generar Información'}
                                 </Button>
                               </DialogFooter>
                             </form>
@@ -241,9 +241,9 @@ export default function ItemPage() {
         <AlertDialog open={!!confirmationData} onOpenChange={() => setConfirmationData(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>¡Solicitud Generada con Éxito!</AlertDialogTitle>
+              <AlertDialogTitle>¡Información Generada con Éxito!</AlertDialogTitle>
               <AlertDialogDescription>
-                Por favor, guarda esta información. El donante la usará para coordinar la entrega contigo.
+                Por favor, contacta al donante usando tu método preferido (ej. WhatsApp) y envíale esta información para coordinar la entrega.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="my-4 space-y-2 p-4 border rounded-md bg-muted/50">

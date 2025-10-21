@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useForm as useGenericForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ItemCard } from '@/components/item-card';
@@ -51,10 +51,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { cn } from '@/lib/utils';
 
 
-const formSchema = z.object({
+const itemFormSchema = z.object({
   title: z.string().min(1, 'El título es obligatorio'),
   description: z.string().min(1, 'La descripción es obligatoria'),
   category: z.enum(['Ropa', 'Útiles', 'Tecnología', 'Libros', 'Uniformes', 'Calzado'], { required_error: 'Selecciona una categoría' }),
@@ -63,7 +62,15 @@ const formSchema = z.object({
   imageUrl: z.string().url('Por favor, introduce una URL de imagen válida.').min(1, 'La URL de la imagen es obligatoria.'),
 });
 
-type FormData = z.infer<typeof formSchema>;
+type ItemFormData = z.infer<typeof itemFormSchema>;
+
+const requestSchema = z.object({
+  nombreCompleto: z.string().min(3, 'El nombre es obligatorio'),
+  direccion: z.string().min(5, 'La dirección es obligatoria'),
+  telefono: z.string().min(7, 'El teléfono es obligatorio'),
+});
+
+type RequestFormData = z.infer<typeof requestSchema>;
 
 function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
   const { user } = useUser();
@@ -71,11 +78,11 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { register, handleSubmit, control, formState: { errors }, reset } = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+  const { register, handleSubmit, control, formState: { errors }, reset } = useForm<ItemFormData>({
+    resolver: zodResolver(itemFormSchema),
   });
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = (data: ItemFormData) => {
     if (!user || !firestore) return;
     
     setIsSubmitting(true);
@@ -225,8 +232,8 @@ function EditItemForm({ item, onFormSubmit, onCancel }: { item: Item, onFormSubm
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { register, handleSubmit, control, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+  const { register, handleSubmit, control, formState: { errors } } = useForm<ItemFormData>({
+    resolver: zodResolver(itemFormSchema),
     defaultValues: {
       title: item.title,
       description: item.description,
@@ -237,7 +244,7 @@ function EditItemForm({ item, onFormSubmit, onCancel }: { item: Item, onFormSubm
     },
   });
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = (data: ItemFormData) => {
     if (!firestore) return;
 
     setIsSubmitting(true);
@@ -375,14 +382,56 @@ function EditItemForm({ item, onFormSubmit, onCancel }: { item: Item, onFormSubm
 
 function ItemRequests({ item, onAction }: { item: Item, onAction: () => void }) {
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
-
+  const [showAddRequestForm, setShowAddRequestForm] = useState(false);
+  
   const requestsQuery = useMemoFirebase(() => {
     if (!firestore || !item) return null;
     return query(collection(firestore, 'materials', item.id, 'requests'));
   }, [firestore, item]);
 
   const { data: requests, isLoading } = useCollection<Solicitud>(requestsQuery);
+
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useGenericForm<RequestFormData>({
+    resolver: zodResolver(requestSchema),
+  });
+
+  const handleAddRequest: SubmitHandler<RequestFormData> = async (data) => {
+    if (!firestore || !user) return;
+    
+    const requestsCollectionRef = collection(firestore, 'materials', item.id, 'requests');
+    const newRequestData = {
+        ...data,
+        materialId: item.id,
+        fechaSolicitud: serverTimestamp(),
+        status: 'Pendiente' as const,
+        solicitanteId: user.uid, // Admin is creating this on behalf of someone
+    };
+
+    addDoc(requestsCollectionRef, newRequestData)
+      .then(() => {
+        const itemRef = doc(firestore, 'materials', item.id);
+        updateDoc(itemRef, { solicitudes: (item.solicitudes || 0) + 1 });
+      })
+      .then(() => {
+          toast({
+              title: '¡Solicitud registrada!',
+              description: 'La solicitud ha sido añadida al artículo.',
+          });
+          reset();
+          setShowAddRequestForm(false);
+          onAction();
+      })
+      .catch((serverError) => {
+          const permissionError = new FirestorePermissionError({
+              path: requestsCollectionRef.path,
+              operation: 'create',
+              requestResourceData: newRequestData,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+      });
+  };
 
   const assignItem = async (solicitud: Solicitud) => {
     if (!firestore || !item) return;
@@ -440,6 +489,9 @@ function ItemRequests({ item, onAction }: { item: Item, onAction: () => void }) 
     const requestRef = doc(firestore, 'materials', item.id, 'requests', solicitudId);
     
     deleteDoc(requestRef).then(() => {
+        const itemRef = doc(firestore, 'materials', item.id);
+        updateDoc(itemRef, { solicitudes: Math.max(0, (item.solicitudes || 1) - 1) });
+    }).then(() => {
         toast({
             title: 'Solicitud Eliminada',
             description: 'La solicitud ha sido eliminada permanentemente.'
@@ -455,16 +507,13 @@ function ItemRequests({ item, onAction }: { item: Item, onAction: () => void }) 
   };
   
   if (isLoading) return <p className="text-sm text-center text-muted-foreground py-4">Cargando solicitudes...</p>
-  if (!requests || requests.length === 0) {
-    return <p className="text-sm text-center text-muted-foreground py-4">No hay solicitudes pendientes para este artículo.</p>;
-  }
-
-  const assignedRequest = requests.find(r => r.id === item.asignadoA);
-  const pendingRequests = requests.filter(r => r.id !== item.asignadoA);
+  
+  const assignedRequest = requests?.find(r => r.id === item.asignadoA);
+  const pendingRequests = requests?.filter(r => r.id !== item.asignadoA) || [];
 
   return (
     <div className="space-y-4">
-      {item.status === 'Asignado' && assignedRequest && (
+      {item.status === 'Asignado' && assignedRequest ? (
          <Card key={assignedRequest.id} className="border-primary ring-1 ring-primary">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Asignado a:</CardTitle>
@@ -484,7 +533,7 @@ function ItemRequests({ item, onAction }: { item: Item, onAction: () => void }) 
                   <AlertDialogHeader>
                     <AlertDialogTitle>¿Desasignar este artículo?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      El artículo volverá a estar "Disponible" y podrás asignarlo a otra persona. La solicitud actual será eliminada.
+                      El artículo volverá a estar "Disponible" y podrás asignarlo a otra persona. La solicitud actual se conservará.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -495,6 +544,11 @@ function ItemRequests({ item, onAction }: { item: Item, onAction: () => void }) 
             </AlertDialog>
           </CardContent>
         </Card>
+      ) : (
+        <div className="p-4 border-dashed border-2 rounded-lg text-center">
+            <p className="text-sm text-muted-foreground mb-2">Este artículo está disponible. Registra una nueva solicitud recibida.</p>
+            <Button size="sm" onClick={() => setShowAddRequestForm(true)}>+ Registrar Nueva Solicitud</Button>
+        </div>
       )}
 
       {pendingRequests.length > 0 && <h4 className="font-semibold pt-4">Otras Solicitudes Pendientes:</h4>}
@@ -535,7 +589,7 @@ function ItemRequests({ item, onAction }: { item: Item, onAction: () => void }) 
                     <AlertDialogHeader>
                       <AlertDialogTitle>¿Rechazar esta solicitud?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Esta acción eliminará la solicitud permanentemente. No se puede deshacer.
+                        Esta acción eliminará la solicitud permanentemente y disminuirá el contador de solicitudes del artículo.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -548,6 +602,46 @@ function ItemRequests({ item, onAction }: { item: Item, onAction: () => void }) 
           </CardContent>
         </Card>
       ))}
+
+      {(!requests || requests.length === 0) && item.status === 'Disponible' && !showAddRequestForm && (
+         <p className="text-sm text-center text-muted-foreground py-4">No hay solicitudes para este artículo.</p>
+      )}
+
+      <Dialog open={showAddRequestForm} onOpenChange={setShowAddRequestForm}>
+        <DialogContent>
+            <form onSubmit={handleSubmit(handleAddRequest)}>
+                <DialogHeader>
+                    <DialogTitle>Registrar Nueva Solicitud</DialogTitle>
+                    <DialogDescription>
+                    Registra los datos del solicitante que te contactó por fuera de la plataforma.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="nombreCompleto">Nombre Completo</Label>
+                        <Input id="nombreCompleto" {...register('nombreCompleto')} />
+                        {errors.nombreCompleto && <p className="text-sm text-destructive">{errors.nombreCompleto.message}</p>}
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="direccion">Dirección</Label>
+                        <Input id="direccion" {...register('direccion')} />
+                        {errors.direccion && <p className="text-sm text-destructive">{errors.direccion.message}</p>}
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="telefono">Teléfono</Label>
+                        <Input id="telefono" {...register('telefono')} />
+                        {errors.telefono && <p className="text-sm text-destructive">{errors.telefono.message}</p>}
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setShowAddRequestForm(false)}>Cancelar</Button>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? 'Registrando...' : 'Registrar Solicitud'}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -609,7 +703,7 @@ function ItemRequestHistory({ allAdminItems, isLoading, error, onAction }: { all
                 <Card>
                     <CardHeader>
                         <CardTitle>Solicitudes Pendientes</CardTitle>
-                        <CardDescription>Artículos con solicitudes nuevas que requieren tu atención.</CardDescription>
+                        <CardDescription>Artículos con solicitudes que requieren tu atención.</CardDescription>
                     </CardHeader>
                     <CardContent>
                        {renderAccordion(pendingItems)}

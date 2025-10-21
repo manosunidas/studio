@@ -31,10 +31,15 @@ export default function Home() {
 
   const itemsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    // Fetch all items, filtering will happen client-side
-    let q = query(collection(firestore, 'materials'));
-    return q;
-  }, [firestore]);
+    let q = collection(firestore, 'materials');
+    
+    const queryConstraints = [];
+    if (status !== 'all') {
+      queryConstraints.push(where('status', '==', status));
+    }
+
+    return query(q, ...queryConstraints);
+  }, [firestore, status]);
 
   const { data: items, isLoading } = useCollection<Item>(itemsQuery);
 
@@ -43,9 +48,8 @@ export default function Home() {
                           item.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = category === 'all' || item.category === category;
     const matchesCondition = condition === 'all' || item.condition === condition;
-    const matchesStatus = status === 'all' || item.status === status;
     
-    return matchesSearch && matchesCategory && matchesCondition && matchesStatus;
+    return matchesSearch && matchesCategory && matchesCondition;
   });
 
   return (
