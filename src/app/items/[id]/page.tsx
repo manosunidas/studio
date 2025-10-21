@@ -9,12 +9,12 @@ import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Heart, User, MapPin, Tag, ArrowLeft, Users, Copy, Mail } from 'lucide-react';
+import { Heart, User, MapPin, Tag, ArrowLeft, Users, Copy, Mail, LogIn } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
 import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, updateDoc, increment } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 
 import {
   Dialog,
@@ -37,6 +37,8 @@ import {
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
 
 const requestSchema = z.object({
   nombreCompleto: z.string().min(3, 'El nombre es obligatorio'),
@@ -56,11 +58,19 @@ export default function ItemPage() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [formDataForMail, setFormDataForMail] = useState<RequestFormData | null>(null);
 
-  const { user } = useUser();
+  const { user, isAdmin } = useUser();
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<RequestFormData>({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue } = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),
   });
+
+  // Pre-fill form if user is logged in
+  useState(() => {
+    if (user && !user.isAnonymous) {
+        setValue('nombreCompleto', user.displayName || '');
+    }
+  });
+
 
   const itemRef = useMemoFirebase(() => {
     if (!firestore || !id) return null;
@@ -81,7 +91,7 @@ export default function ItemPage() {
   }
   
   const isAvailable = item.status === 'Disponible';
-  const isAdmin = user && !user.isAnonymous;
+  const isUserAnonymous = !user || user.isAnonymous;
 
   const mailtoHref = formDataForMail && item ? `mailto:jhelenandreat@gmail.com?subject=${encodeURIComponent(`Solicitud de Artículo: ${item.title}`)}&body=${encodeURIComponent(
     `Hola,
@@ -111,6 +121,85 @@ Gracias.`;
       title: "Información copiada",
       description: "Los detalles de la solicitud se han copiado al portapapeles."
     })
+  }
+  
+  const renderRequestButton = () => {
+    if (!isAvailable) {
+      return null;
+    }
+    
+    if (isUserAnonymous) {
+      return (
+        <Button size="lg" onClick={() => router.push('/login')}>
+          <LogIn className="mr-2 h-5 w-5" />
+          Iniciar Sesión para Solicitar
+        </Button>
+      );
+    }
+    
+    if (isAdmin) {
+       return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <div className="inline-block"> 
+                        <Button size="lg" disabled>
+                            <Heart className="mr-2 h-5 w-5" />
+                            Solicitar Artículo
+                        </Button>
+                    </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>Los administradores no pueden solicitar artículos.</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+       )
+    }
+
+    return (
+        <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
+            <DialogTrigger asChild>
+               <Button size="lg">
+                <Heart className="mr-2 h-5 w-5" />
+                Solicitar Artículo
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <form onSubmit={handleSubmit(handleRequestSubmit)}>
+                <DialogHeader>
+                  <DialogTitle>Solicitar este artículo</DialogTitle>
+                  <DialogDescription>
+                    Confirma tus datos para generar la información de contacto para el donante.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                   <div className="grid gap-2">
+                    <Label htmlFor="nombreCompleto">Nombre Completo</Label>
+                    <Input id="nombreCompleto" {...register('nombreCompleto')} placeholder="Tu nombre completo" />
+                    {errors.nombreCompleto && <p className="text-sm text-destructive">{errors.nombreCompleto.message}</p>}
+                   </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="direccion">Dirección o Barrio</Label>
+                    <Input id="direccion" {...register('direccion')} placeholder="Tu dirección o barrio" />
+                     {errors.direccion && <p className="text-sm text-destructive">{errors.direccion.message}</p>}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="telefono">Teléfono de Contacto</Label>
+                    <Input id="telefono" {...register('telefono')} placeholder="Tu número de teléfono" />
+                     {errors.telefono && <p className="text-sm text-destructive">{errors.telefono.message}</p>}
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setRequestDialogOpen(false)}>Cancelar</Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Generando...' : 'Generar Información'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+    );
   }
 
   return (
@@ -142,49 +231,7 @@ Gracias.`;
                     <ArrowLeft className="mr-2 h-5 w-5" />
                     Volver
                   </Button>
-                   {isAvailable && (
-                      <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
-                        <DialogTrigger asChild>
-                           <Button size="lg">
-                            <Heart className="mr-2 h-5 w-5" />
-                            Solicitar Artículo
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[425px]">
-                          <form onSubmit={handleSubmit(handleRequestSubmit)}>
-                            <DialogHeader>
-                              <DialogTitle>Solicitar este artículo</DialogTitle>
-                              <DialogDescription>
-                                Completa tus datos para generar la información de contacto para el donante.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                               <div className="grid gap-2">
-                                <Label htmlFor="nombreCompleto">Nombre Completo</Label>
-                                <Input id="nombreCompleto" {...register('nombreCompleto')} placeholder="Tu nombre completo" />
-                                {errors.nombreCompleto && <p className="text-sm text-destructive">{errors.nombreCompleto.message}</p>}
-                               </div>
-                              <div className="grid gap-2">
-                                <Label htmlFor="direccion">Dirección o Barrio</Label>
-                                <Input id="direccion" {...register('direccion')} placeholder="Tu dirección o barrio" />
-                                 {errors.direccion && <p className="text-sm text-destructive">{errors.direccion.message}</p>}
-                              </div>
-                              <div className="grid gap-2">
-                                <Label htmlFor="telefono">Teléfono de Contacto</Label>
-                                <Input id="telefono" {...register('telefono')} placeholder="Tu número de teléfono" />
-                                 {errors.telefono && <p className="text-sm text-destructive">{errors.telefono.message}</p>}
-                              </div>
-                            </div>
-                            <DialogFooter>
-                              <Button type="button" variant="outline" onClick={() => setRequestDialogOpen(false)}>Cancelar</Button>
-                              <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting ? 'Generando...' : 'Generar Información'}
-                              </Button>
-                            </DialogFooter>
-                          </form>
-                        </DialogContent>
-                      </Dialog>
-                    )}
+                  {renderRequestButton()}
                 </div>
             </div>
             <p className="text-lg text-muted-foreground mt-2">
@@ -269,4 +316,5 @@ Gracias.`;
     </div>
   );
 }
+
     

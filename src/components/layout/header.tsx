@@ -27,7 +27,7 @@ function DynamicHeaderContent() {
   const pathname = usePathname();
   const router = useRouter();
   const [isSheetOpen, setSheetOpen] = useState(false);
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading, isAdmin } = useUser();
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
 
@@ -40,9 +40,11 @@ function DynamicHeaderContent() {
       await signOut(getAuth());
       toast({
         title: 'Sesión cerrada',
-        description: 'Has cerrado sesión exitosamente. Serás un usuario anónimo.',
+        description: 'Has cerrado sesión exitosamente.',
       });
+      // Allow the useUser hook to update and then redirect
       router.push('/');
+      router.refresh(); // Forces a refresh to get new server state for anon user
     } catch (error) {
       toast({
         title: 'Error al cerrar sesión',
@@ -53,7 +55,7 @@ function DynamicHeaderContent() {
   };
   
   const getInitials = (name: string | null | undefined) => {
-    if (!name) return 'A';
+    if (!name) return 'U'; // User
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
@@ -72,7 +74,7 @@ function DynamicHeaderContent() {
   );
 
   const renderDynamicContent = () => {
-    const isAdmin = user && !user.isAnonymous;
+    const isUserLoggedIn = user && !user.isAnonymous;
     const navLinks = [
       { href: '/', label: 'Inicio', className: "text-lg" },
       ...(isAdmin ? [{ href: '/profile', label: 'Mi Panel', className: "text-lg" }] : []),
@@ -98,7 +100,7 @@ function DynamicHeaderContent() {
             ))}
           </nav>
           <div className="flex items-center gap-4">
-            {isAdmin ? (
+            {isUserLoggedIn ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-12 w-12 rounded-full">
@@ -118,16 +120,19 @@ function DynamicHeaderContent() {
                       </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/profile">Mi Panel</Link>
-                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/profile">Panel de Admin</Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => toast({title: "Próximamente", description: "Podrás ver tu perfil pronto."})}>Mi Perfil</DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
               <Button variant="ghost" asChild>
-                <Link href="/login" className="text-lg">Iniciar Sesión (Admin)</Link>
+                <Link href="/login" className="text-lg">Iniciar Sesión</Link>
               </Button>
             )}
           </div>
@@ -153,24 +158,24 @@ function DynamicHeaderContent() {
                   ))}
                 </nav>
                 <div className="mt-auto border-t pt-6">
-                  {isAdmin ? (
+                  {isUserLoggedIn ? (
                     <div className="flex flex-col gap-4">
-                      <Link href="/profile" className="flex items-center gap-4 text-lg font-medium" onClick={() => setSheetOpen(false)}>
+                      <div className="flex items-center gap-4 text-lg font-medium">
                         <Avatar className="h-12 w-12">
                             <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'Avatar'} />
                             <AvatarFallback className="text-xl">{getInitials(user.displayName)}</AvatarFallback>
                         </Avatar>
                         <div>
                              <p className="text-base font-semibold">{user.displayName}</p>
-                             <p className="text-sm text-muted-foreground">Ir al Panel</p>
+                             <p className="text-sm text-muted-foreground">{isAdmin ? 'Administrador' : 'Usuario'}</p>
                         </div>
-                      </Link>
+                      </div>
                       <Button onClick={() => { handleLogout(); setSheetOpen(false); }} size="lg">Cerrar Sesión</Button>
                     </div>
                   ) : (
                     <div className="flex flex-col gap-4">
                       <Button asChild size="lg">
-                        <Link href="/login" onClick={() => setSheetOpen(false)}>Iniciar Sesión (Admin)</Link>
+                        <Link href="/login" onClick={() => setSheetOpen(false)}>Iniciar Sesión</Link>
                       </Button>
                     </div>
                   )}
@@ -199,3 +204,5 @@ export default function Header() {
       </header>
     );
   }
+
+    

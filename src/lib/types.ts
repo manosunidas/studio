@@ -36,6 +36,7 @@ export interface Solicitud {
   status: SolicitudStatus;
 }
 
+// Keep FirebaseUser as the base for the User type
 export type User = FirebaseUser;
 
     
