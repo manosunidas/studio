@@ -1,5 +1,4 @@
 'use server';
-import 'dotenv/config';
 
 import { z } from 'zod';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
