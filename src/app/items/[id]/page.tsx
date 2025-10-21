@@ -80,26 +80,45 @@ export default function ItemPage() {
         status: 'Pendiente' as const,
         solicitanteId: user.uid,
     };
-    
-    addDoc(requestsCollectionRef, newRequestData).then(() => {
-        // Now, call the server action to increment the count
-        incrementSolicitudes(item.id);
+
+    try {
+        await addDoc(requestsCollectionRef, newRequestData);
+        
+        // Call server action and wait for it to complete
+        const result = await incrementSolicitudes(item.id);
+        
+        if (!result.success) {
+            throw new Error(result.error || 'No se pudo actualizar el contador.');
+        }
 
         toast({
             title: '¡Solicitud Enviada!',
             description: 'Tu solicitud ha sido registrada y el donante será notificado.',
         });
+        
         setRequestDialogOpen(false);
         reset();
         refetch(); // Refresca los datos del artículo para mostrar el contador actualizado
-    }).catch(serverError => {
-        const permissionError = new FirestorePermissionError({
-            path: requestsCollectionRef.path,
-            operation: 'create',
-            requestResourceData: newRequestData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    });
+
+    } catch (error: any) {
+        console.error("Error al procesar la solicitud: ", error);
+        
+        // Check if it is a Firestore permission error
+        if (error.name !== 'FirebaseError') {
+             const permissionError = new FirestorePermissionError({
+                path: requestsCollectionRef.path,
+                operation: 'create',
+                requestResourceData: newRequestData,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        } else {
+             toast({
+                variant: 'destructive',
+                title: 'Error al enviar la solicitud',
+                description: error.message || 'Ocurrió un problema. Inténtalo de nuevo.',
+            });
+        }
+    }
   };
   
   if (isItemLoading || !item) {
