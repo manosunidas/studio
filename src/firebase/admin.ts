@@ -9,7 +9,7 @@ const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
  * Initializes and returns the Firebase Admin App instance.
  * Ensures that initialization only happens once.
  */
-export const getAdminApp = async () => {
+export async function getAdminApp() {
     // If the app is already initialized, return it.
     if (admin.apps.length > 0) {
         return admin.app();

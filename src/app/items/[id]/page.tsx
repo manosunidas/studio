@@ -105,8 +105,8 @@ export default function ItemPage() {
         console.error("Error al procesar la solicitud: ", error);
         
         // Let the global error handler catch permission errors
-        if (error.name !== 'FirebaseError') {
-             const permissionError = new FirestorePermissionError({
+        if (error.name === 'FirebaseError') {
+            const permissionError = new FirestorePermissionError({
                 path: requestsCollectionRef.path,
                 operation: 'create',
                 requestResourceData: newRequestData,
