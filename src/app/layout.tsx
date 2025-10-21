@@ -34,15 +34,6 @@ export default function RootLayout({
           'font-body'
         )}
       >
-        <div className="fixed inset-0 -z-10 flex items-center justify-center pointer-events-none">
-            <Image
-                src="/img/AMOROSO_LOGO.png"
-                alt="Marca de agua Amoroso"
-                width={500}
-                height={500}
-                className="opacity-5"
-            />
-        </div>
         <FirebaseClientProvider>
           <Header />
           <main className="flex-grow">{children}</main>
