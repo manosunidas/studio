@@ -1,7 +1,7 @@
 'use server';
 
 import { getAdminApp } from '@/firebase/admin';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 export async function incrementSolicitudes(materialId: string) {
   if (!materialId) {
@@ -14,9 +14,9 @@ export async function incrementSolicitudes(materialId: string) {
     const db = getFirestore(adminApp);
     
     const materialRef = db.collection('materials').doc(materialId);
+    
+    // Instead of incrementing, we synchronize the count. This is more robust.
     const requestsCollectionRef = materialRef.collection('requests');
-
-    // Count the actual number of requests in the subcollection
     const requestsSnapshot = await requestsCollectionRef.get();
     const currentRequestCount = requestsSnapshot.size;
     
