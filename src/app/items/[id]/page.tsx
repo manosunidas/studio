@@ -12,10 +12,9 @@ import { Badge } from '@/components/ui/badge';
 import { Heart, User, MapPin, Tag, ArrowLeft, Mail, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
-import { createRequest } from '@/app/actions/create-request';
+import type { Item, Solicitud } from '@/lib/types';
+import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { doc, collection, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 
 import {
   Dialog,
@@ -44,6 +43,7 @@ export default function ItemPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isRequestDialogOpen, setRequestDialogOpen] = useState(false);
+  const { user, isUserLoading } = useUser();
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),
@@ -57,31 +57,54 @@ export default function ItemPage() {
   const { data: item, isLoading: isItemLoading, refetch } = useDoc<Item>(itemRef);
 
   const handleRequestSubmit: SubmitHandler<RequestFormData> = async (data) => {
-    if (!item) {
+    if (!item || !user) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'No se encontró el artículo.',
+        description: 'No se encontró el artículo o el usuario no está disponible.',
       });
       return;
     }
 
-    const result = await createRequest({ ...data, materialId: item.id });
+    const requestsCollectionRef = collection(firestore, 'materials', item.id, 'requests');
+    const newRequestData = {
+      ...data,
+      materialId: item.id,
+      fechaSolicitud: serverTimestamp(),
+      status: 'Pendiente' as const,
+      solicitanteId: user.uid, // Use the (anonymous) user's UID
+    };
 
-    if (result.success) {
-      toast({
-        title: '¡Solicitud enviada!',
-        description: 'Tu solicitud ha sido registrada. El donante será notificado.',
-      });
-      setRequestDialogOpen(false);
-      reset();
-      refetch();
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Error al enviar la solicitud",
-        description: result.message || "No se pudo registrar la solicitud. Por favor, inténtelo de nuevo más tarde.",
-      });
+    try {
+        // 1. Create the request document
+        const newRequestRef = await addDoc(requestsCollectionRef, newRequestData);
+
+        // 2. Update the material's request count
+        await updateDoc(itemRef, {
+            solicitudes: (item.solicitudes || 0) + 1
+        });
+
+        toast({
+            title: '¡Solicitud enviada!',
+            description: 'Tu solicitud ha sido registrada. El donante será notificado.',
+        });
+        setRequestDialogOpen(false);
+        reset();
+        refetch(); // Refetch item to show updated request count
+    } catch (serverError: any) {
+        console.error("Error creating request:", serverError);
+        const permissionError = new FirestorePermissionError({
+            path: requestsCollectionRef.path,
+            operation: 'create',
+            requestResourceData: newRequestData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+
+        toast({
+            variant: "destructive",
+            title: "Error al enviar la solicitud",
+            description: serverError.message || "No se pudo registrar la solicitud. Por favor, inténtelo de nuevo más tarde.",
+        });
     }
   };
   
@@ -90,7 +113,8 @@ export default function ItemPage() {
   }
   
   const isAvailable = item.status === 'Disponible';
-  const canRequest = isAvailable;
+  // A user can request if the item is available and the user session is ready
+  const canRequest = isAvailable && !isUserLoading;
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-12 md:py-20">
@@ -123,12 +147,12 @@ export default function ItemPage() {
                     Volver
                   </Button>
                   
-                   {canRequest && (
+                   {isAvailable && (
                       <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
                         <DialogTrigger asChild>
-                           <Button size="lg">
+                           <Button size="lg" disabled={!canRequest}>
                             <Heart className="mr-2 h-5 w-5" />
-                            Solicitar Artículo
+                            {isUserLoading ? 'Verificando...' : 'Solicitar Artículo'}
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-[425px]">
