@@ -13,8 +13,8 @@ import { Heart, User, MapPin, Tag, ArrowLeft, Users, Copy, Mail, LogIn } from 'l
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { doc, addDoc, updateDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 import {
   Dialog,
@@ -25,15 +25,6 @@ import {
   DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,8 +46,6 @@ export default function ItemPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isRequestDialogOpen, setRequestDialogOpen] = useState(false);
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [formDataForMail, setFormDataForMail] = useState<RequestFormData | null>(null);
 
   const { user, isAdmin } = useUser();
 
@@ -80,10 +69,46 @@ export default function ItemPage() {
   const { data: item, isLoading: isItemLoading, refetch } = useDoc<Item>(itemRef);
 
   const handleRequestSubmit: SubmitHandler<RequestFormData> = async (data) => {
-    if (!item) return;
-    setFormDataForMail(data);
-    setRequestDialogOpen(false);
-    setShowSuccessDialog(true);
+    if (!item || !user || !firestore) return;
+    
+    const requestsCollectionRef = collection(firestore, 'materials', item.id, 'requests');
+    const newRequestData = {
+        ...data,
+        materialId: item.id,
+        fechaSolicitud: serverTimestamp(),
+        status: 'Pendiente' as const,
+        solicitanteId: user.uid,
+    };
+    
+    addDoc(requestsCollectionRef, newRequestData).then(() => {
+        const itemDocRef = doc(firestore, 'materials', item.id);
+        const updateData = {
+          solicitudes: (item.solicitudes || 0) + 1,
+        };
+        updateDoc(itemDocRef, updateData).catch(serverError => {
+            const permissionError = new FirestorePermissionError({
+                path: itemDocRef.path,
+                operation: 'update',
+                requestResourceData: updateData,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
+
+        toast({
+            title: '¡Solicitud Enviada!',
+            description: 'Tu solicitud ha sido registrada y el donante será notificado.',
+        });
+        setRequestDialogOpen(false);
+        reset();
+        refetch(); // Refresca los datos del artículo para mostrar el contador actualizado
+    }).catch(serverError => {
+        const permissionError = new FirestorePermissionError({
+            path: requestsCollectionRef.path,
+            operation: 'create',
+            requestResourceData: newRequestData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   };
   
   if (isItemLoading || !item) {
@@ -93,36 +118,6 @@ export default function ItemPage() {
   const isAvailable = item.status === 'Disponible';
   const isUserAnonymous = !user || user.isAnonymous;
 
-  const mailtoHref = formDataForMail && item ? `mailto:jhelenandreat@gmail.com?subject=${encodeURIComponent(`Solicitud de Artículo: ${item.title}`)}&body=${encodeURIComponent(
-    `Hola,
-    
-Me gustaría solicitar el siguiente artículo:
-- Artículo: ${item.title} (ID: ${item.id})
-
-Mis datos de contacto son:
-- Nombre: ${formDataForMail.nombreCompleto}
-- Dirección/Barrio: ${formDataForMail.direccion}
-- Teléfono: ${formDataForMail.telefono}
-
-Gracias.`
-  )}` : "";
-  
-  const copyToClipboard = () => {
-    if (!formDataForMail || !item) return;
-    const textToCopy = `Hola, me gustaría solicitar el siguiente artículo:
-- Artículo: ${item.title} (ID: ${item.id})
-Mis datos de contacto son:
-- Nombre: ${formDataForMail.nombreCompleto}
-- Dirección/Barrio: ${formDataForMail.direccion}
-- Teléfono: ${formDataForMail.telefono}
-Gracias.`;
-    navigator.clipboard.writeText(textToCopy);
-    toast({
-      title: "Información copiada",
-      description: "Los detalles de la solicitud se han copiado al portapapeles."
-    })
-  }
-  
   const renderRequestButton = () => {
     if (!isAvailable) {
       return null;
@@ -168,9 +163,9 @@ Gracias.`;
             <DialogContent className="sm:max-w-[425px]">
               <form onSubmit={handleSubmit(handleRequestSubmit)}>
                 <DialogHeader>
-                  <DialogTitle>Solicitar este artículo</DialogTitle>
+                  <DialogTitle>Confirmar Solicitud</DialogTitle>
                   <DialogDescription>
-                    Confirma tus datos para generar la información de contacto para el donante.
+                    Verifica tus datos de contacto. Serán enviados al donante para coordinar la entrega.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -193,7 +188,7 @@ Gracias.`;
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setRequestDialogOpen(false)}>Cancelar</Button>
                   <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? 'Generando...' : 'Generar Información'}
+                    {isSubmitting ? 'Enviando...' : 'Confirmar Solicitud'}
                   </Button>
                 </DialogFooter>
               </form>
@@ -282,39 +277,6 @@ Gracias.`;
           )}
         </div>
       </div>
-      
-      <AlertDialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¡Información Generada!</AlertDialogTitle>
-            <AlertDialogDescription>
-              Por favor, contacta al donante (administrador) para coordinar la entrega. Puedes enviarle un correo con la información de tu solicitud o copiarla para enviarla por otro medio.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {formDataForMail && item && (
-             <div className="p-4 bg-muted rounded-md text-sm">
-              <p><strong>Artículo:</strong> {item.title}</p>
-              <p><strong>Nombre:</strong> {formDataForMail.nombreCompleto}</p>
-              <p><strong>Dirección:</strong> {formDataForMail.direccion}</p>
-              <p><strong>Teléfono:</strong> {formDataForMail.telefono}</p>
-            </div>
-          )}
-          <AlertDialogFooter className="sm:justify-start gap-2">
-             <AlertDialogAction asChild className="w-full sm:w-auto">
-               <a href={mailtoHref}>
-                <Mail className="mr-2 h-4 w-4" /> Enviar por Correo
-               </a>
-             </AlertDialogAction>
-             <Button variant="secondary" onClick={copyToClipboard} className="w-full sm:w-auto">
-                <Copy className="mr-2 h-4 w-4" /> Copiar Información
-             </Button>
-            <Button variant="outline" onClick={() => setShowSuccessDialog(false)} className="w-full sm:w-auto mt-2 sm:mt-0">Cerrar</Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
     </div>
   );
 }
-
-    
