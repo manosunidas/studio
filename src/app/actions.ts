@@ -1,7 +1,7 @@
 'use server';
 
 import { getAdminApp } from '@/firebase/admin';
-import { getFirestore, increment } from 'firebase-admin/firestore';
+import { getFirestore } from 'firebase-admin/firestore';
 
 export async function incrementSolicitudes(materialId: string) {
   if (!materialId) {
@@ -10,22 +10,25 @@ export async function incrementSolicitudes(materialId: string) {
   }
   
   try {
-    // Ensure the admin app is initialized before proceeding
     const adminApp = await getAdminApp();
     const db = getFirestore(adminApp);
     
     const materialRef = db.collection('materials').doc(materialId);
+    const requestsCollectionRef = materialRef.collection('requests');
+
+    // Count the actual number of requests in the subcollection
+    const requestsSnapshot = await requestsCollectionRef.get();
+    const currentRequestCount = requestsSnapshot.size;
     
-    // Perform the atomic increment operation
+    // Update the material document with the correct count
     await materialRef.update({
-      solicitudes: increment(1)
+      solicitudes: currentRequestCount
     });
 
-    console.log(`Successfully incremented solicitues for material: ${materialId}`);
+    console.log(`Successfully synchronized solicitues count for material: ${materialId} to ${currentRequestCount}`);
     return { success: true };
   } catch (error) {
-    console.error(`Error incrementing solicitues for material ${materialId}:`, error);
-    // Return a specific error message for debugging on the client-side
+    console.error(`Error syncing solicitues for material ${materialId}:`, error);
     return { success: false, error: 'Failed to update solicitues count.' };
   }
 }
