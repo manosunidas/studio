@@ -2,29 +2,189 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { DynamicHeaderContent } from './dynamic-header-content';
-import { Suspense } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Menu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { useUser } from '@/firebase';
+import { getAuth, signOut } from 'firebase/auth';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '../ui/skeleton';
 
-export default function DynamicHeader() {
-  return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-24 items-center justify-between px-4 md:px-6">
-        <Link href="/" className="flex items-center gap-2 font-bold text-5xl">
-            <Image src="/img/logo_manosunidas.jpg" alt="Manos Unidas Logo" width={96} height={96} className="rounded-lg" />
-            <span className="hidden sm:inline">Manos Unidas</span>
-        </Link>
-        
-        <Suspense fallback={
-          <div className="flex items-center gap-4">
-              <Skeleton className="w-24 h-8 rounded-md md:w-32" />
-              <Skeleton className="w-12 h-12 rounded-full hidden md:block" />
-              <Skeleton className="w-8 h-8 rounded-md md:hidden" />
-          </div>
-        }>
-          <DynamicHeaderContent />
-        </Suspense>
-      </div>
-    </header>
+
+export function DynamicHeaderContent() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [isSheetOpen, setSheetOpen] = useState(false);
+  const { user, isUserLoading, isAdmin } = useUser();
+  const { toast } = useToast();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(getAuth());
+      toast({
+        title: 'Sesión cerrada',
+        description: 'Has cerrado sesión exitosamente.',
+      });
+      router.push('/');
+      router.refresh(); 
+    } catch (error) {
+      toast({
+        title: 'Error al cerrar sesión',
+        description: 'Hubo un problema al cerrar tu sesión.',
+        variant: 'destructive',
+      });
+    }
+  };
+  
+  const getInitials = (name: string | null | undefined) => {
+    if (!name) return 'A'; // Admin
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  };
+
+  const NavLink = ({ href, label, className }: { href: string; label: string, className?: string }) => (
+    <Link
+      href={href}
+      className={cn(
+        'font-medium transition-colors hover:text-primary',
+        pathname === href ? 'text-primary' : 'text-muted-foreground',
+        className
+      )}
+      onClick={() => setSheetOpen(false)}
+    >
+      {label}
+    </Link>
   );
+
+  const renderDynamicContent = () => {
+    const navLinks = [
+      { href: '/', label: 'Inicio', className: "text-lg" },
+      ...(isAdmin ? [{ href: '/profile', label: 'Panel Admin', className: "text-lg" }] : []),
+    ];
+
+    if (!isMounted || isUserLoading) {
+       return (
+         <div className="flex items-center gap-4">
+             <Skeleton className="w-24 h-8 rounded-md md:w-32" />
+             <Skeleton className="w-12 h-12 rounded-full hidden md:block" />
+             <Skeleton className="w-8 h-8 rounded-md md:hidden" />
+         </div>
+       )
+    }
+
+    return (
+      <>
+        {/* Desktop Navigation & Auth */}
+        <div className="hidden md:flex items-center gap-6">
+          <nav className="flex items-center gap-6">
+            {navLinks.map((link) => (
+              <NavLink key={link.href} {...link} />
+            ))}
+          </nav>
+          <div className="flex items-center gap-4">
+            {isAdmin ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-12 w-12 rounded-full">
+                     <Avatar className="h-12 w-12">
+                        <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'Avatar'} />
+                        <AvatarFallback className="text-xl">{getInitials(user.displayName)}</AvatarFallback>
+                      </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>
+                     <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">{user.displayName}</p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {user.email}
+                        </p>
+                      </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                      <Link href="/profile">Panel de Admin</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button asChild>
+                <Link href="/login">Iniciar Sesión (Admin)</Link>
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile Navigation & Auth */}
+        <div className="md:hidden">
+          <Sheet open={isSheetOpen} onOpenChange={setSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="h-8 w-8" />
+                <span className="sr-only">Abrir menú</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left">
+              <div className="flex flex-col h-full">
+                <div className="border-b pb-4">
+                   <Link href="/" className="flex items-center gap-2 font-bold" onClick={() => setSheetOpen(false)}>
+                      <Image src="/img/logo_manosunidas.jpg" alt="Manos Unidas Logo" width={48} height={48} className="rounded-lg" />
+                      <span>Manos Unidas</span>
+                  </Link>
+                </div>
+                <nav className="flex flex-col gap-4 py-6">
+                  {navLinks.map((link) => (
+                    <NavLink key={link.href} {...link} />
+                  ))}
+                </nav>
+                <div className="mt-auto border-t pt-6">
+                  {isAdmin ? (
+                    <div className="flex flex-col gap-4">
+                      <Link href="/profile" className="flex items-center gap-4 text-lg font-medium" onClick={() => setSheetOpen(false)}>
+                        <Avatar className="h-12 w-12">
+                            <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'Avatar'} />
+                            <AvatarFallback className="text-xl">{getInitials(user.displayName)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                             <p className="text-base font-semibold">{user.displayName}</p>
+                             <p className="text-sm text-muted-foreground">Ir al Panel</p>
+                        </div>
+                      </Link>
+                      <Button onClick={() => { handleLogout(); setSheetOpen(false); }} size="lg">Cerrar Sesión</Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-4">
+                      <Button asChild size="lg">
+                        <Link href="/login" onClick={() => setSheetOpen(false)}>Iniciar Sesión (Admin)</Link>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      </>
+    );
+  };
+
+  return renderDynamicContent();
 }
