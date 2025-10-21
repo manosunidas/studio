@@ -7,8 +7,6 @@
  * This flow sends an email to the administrator when a user requests an item.
  *
  * - `sendRequestEmail`: The main function to trigger the email sending flow.
- * - `SendRequestEmailInput`: The input type for the flow.
- * - `SendRequestEmailOutput`: The output type for the flow.
  */
 
 import { ai } from '@/ai/genkit';
@@ -16,23 +14,25 @@ import { z } from 'zod';
 import { Resend } from 'resend';
 
 // Input schema for the flow
-export const SendRequestEmailInputSchema = z.object({
+const SendRequestEmailInputSchema = z.object({
   requesterName: z.string().describe('The full name of the person requesting the item.'),
   requesterAddress: z.string().describe('The address or neighborhood of the requester.'),
   requesterPhone: z.string().describe('The contact phone number of the requester.'),
+  eligibilityReason: z.string().describe('The reason why the requester believes they are eligible for the item.'),
   itemName: z.string().describe('The name of the requested item.'),
   itemId: z.string().describe('The ID of the requested item.'),
 });
 
-export type SendRequestEmailInput = z.infer<typeof SendRequestEmailInputSchema>;
-
 // Output schema for the flow
-export const SendRequestEmailOutputSchema = z.object({
+const SendRequestEmailOutputSchema = z.object({
   success: z.boolean().describe('Whether the email was sent successfully.'),
   message: z.string().describe('A message indicating the result.'),
 });
 
+// Type definitions inferred from schemas
+export type SendRequestEmailInput = z.infer<typeof SendRequestEmailInputSchema>;
 export type SendRequestEmailOutput = z.infer<typeof SendRequestEmailOutputSchema>;
+
 
 // The main exported function that clients will call.
 export async function sendRequestEmail(input: SendRequestEmailInput): Promise<SendRequestEmailOutput> {
@@ -76,6 +76,9 @@ Datos del Solicitante:
 - Nombre: ${input.requesterName}
 - Dirección: ${input.requesterAddress}
 - Teléfono: ${input.requesterPhone}
+
+Motivo de la Solicitud:
+${input.eligibilityReason}
 
 Próximos Pasos:
 1. Contacta al solicitante para coordinar la entrega.

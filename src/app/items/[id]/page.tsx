@@ -30,6 +30,7 @@ import {
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
@@ -37,6 +38,7 @@ const requestSchema = z.object({
   nombreCompleto: z.string().min(3, 'El nombre es obligatorio'),
   direccion: z.string().min(5, 'La dirección es obligatoria'),
   telefono: z.string().min(7, 'El teléfono es obligatorio'),
+  eligibilityReason: z.string().min(10, 'Por favor, explica brevemente por qué necesitas el artículo.'),
   captcha: z.string().min(1, 'La respuesta del captcha es obligatoria'),
 });
 
@@ -96,6 +98,7 @@ export default function ItemPage() {
         requesterName: data.nombreCompleto,
         requesterAddress: data.direccion,
         requesterPhone: data.telefono,
+        eligibilityReason: data.eligibilityReason,
         itemName: item.title,
         itemId: item.id,
       });
@@ -166,7 +169,7 @@ export default function ItemPage() {
                 Solicitar Artículo
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[480px]">
               <form onSubmit={handleSubmit(handleRequestSubmit)}>
                 <DialogHeader>
                   <DialogTitle>Formulario de Solicitud</DialogTitle>
@@ -189,6 +192,11 @@ export default function ItemPage() {
                     <Label htmlFor="telefono">Teléfono de Contacto</Label>
                     <Input id="telefono" {...register('telefono')} placeholder="Tu número de teléfono" />
                      {errors.telefono && <p className="text-sm text-destructive">{errors.telefono.message}</p>}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="eligibilityReason">Motivo de la Solicitud</Label>
+                    <Textarea id="eligibilityReason" {...register('eligibilityReason')} placeholder="Explica brevemente por qué necesitas este artículo para tus estudios." />
+                    {errors.eligibilityReason && <p className="text-sm text-destructive">{errors.eligibilityReason.message}</p>}
                   </div>
                    <div className="grid gap-2 p-3 bg-muted rounded-md">
                     <Label htmlFor="captcha">Verificación (Captcha)</Label>
