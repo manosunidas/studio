@@ -54,14 +54,15 @@ export default function ItemPage() {
   const [num1, setNum1] = useState(0);
   const [num2, setNum2] = useState(0);
 
-  const { isAdmin, isUserLoading } = useUser();
+  const { user, isUserLoading } = useUser();
+  const isAdmin = user?.email === 'jhelenandreat@gmail.com';
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),
   });
   
   useEffect(() => {
-    // Generate new captcha numbers when the dialog opens
+    // Generate new captcha numbers when the dialog opens or on component mount
     if (isRequestDialogOpen) {
       setNum1(Math.floor(Math.random() * 10) + 1);
       setNum2(Math.floor(Math.random() * 10) + 1);
@@ -240,7 +241,7 @@ export default function ItemPage() {
                 </div>
             </div>
             <p className="text-lg text-muted-foreground mt-2">
-              Publicado por <span className="font-semibold text-primary">{item.postedByName || 'Donante Anónimo'}</span>
+              Publicado por <span className="font-semibold text-primary">{item.postedByName || 'Admin'}</span>
             </p>
           </div>
             <div className="mt-auto">

@@ -12,7 +12,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { Resend } from 'resend';
 
 // Input schema for the flow
@@ -83,23 +83,31 @@ Próximos Pasos:
     `.trim();
 
     try {
-      await resend.emails.send({
+      const { data, error } = await resend.emails.send({
         from: 'Manos Unidas Digital <onboarding@resend.dev>', // Required by Resend for free tier
         to: adminEmail,
         subject: `Nueva Solicitud de Artículo: ${input.itemName}`,
         text: emailBodyText, // Use the plain text version
       });
 
+      if (error) {
+        console.error("Error sending email via Resend:", error);
+        return {
+            success: false,
+            message: 'Hubo un error al intentar enviar el correo de notificación.',
+        };
+      }
+
       return {
         success: true,
         message: `Email sent to ${adminEmail}`,
       };
     } catch (error) {
-      console.error("Error sending email via Resend:", error);
+      console.error("Catastrophic error sending email via Resend:", error);
       // Return a structured error to the client
       return {
         success: false,
-        message: 'Hubo un error al intentar enviar el correo de notificación.',
+        message: 'Hubo un error catastrófico al intentar enviar el correo de notificación.',
       };
     }
   }
