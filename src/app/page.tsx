@@ -11,9 +11,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ItemCard } from '@/components/item-card';
-import { useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { useCollection, useMemoFirebase } from '@/firebase';
 import { ArrowRight, Search } from 'lucide-react';
-import { SuggestedItems } from '@/components/suggested-items';
 import { AssignedItemsCarousel } from '@/components/assigned-items-carousel';
 import { useState } from 'react';
 import type { ItemCategory, ItemCondition, Item, ItemStatus } from '@/lib/types';
@@ -23,7 +22,6 @@ import { collection, query, where } from 'firebase/firestore';
 
 export default function Home() {
   const firestore = useFirestore();
-  const { user } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
   const [category, setCategory] = useState<ItemCategory | 'all'>('all');
   const [condition, setCondition] = useState<ItemCondition | 'all'>('all');
@@ -72,8 +70,7 @@ export default function Home() {
         </div>
       </section>
 
-      {!user && <AssignedItemsCarousel />}
-      <SuggestedItems />
+      <AssignedItemsCarousel />
 
       <section id="catalog" className="w-full py-16 md:py-24">
         <div className="container mx-auto px-4 md:px-6">
