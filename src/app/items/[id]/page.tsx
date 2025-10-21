@@ -57,7 +57,7 @@ export default function ItemPage() {
   const { data: item, isLoading: isItemLoading, refetch } = useDoc<Item>(itemRef);
 
   const handleRequestSubmit: SubmitHandler<RequestFormData> = async (data) => {
-    if (!firestore || !item) return;
+    if (!firestore || !item || !user) return;
 
     const requestsCollectionRef = collection(firestore, 'materials', id, 'requests');
     const newRequestData = {
@@ -65,7 +65,7 @@ export default function ItemPage() {
         materialId: id,
         fechaSolicitud: serverTimestamp(),
         status: 'Pendiente' as const,
-        solicitanteId: user?.uid || "public_request",
+        solicitanteId: user.uid,
     };
     
     try {
