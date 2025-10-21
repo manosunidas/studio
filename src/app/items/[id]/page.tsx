@@ -70,7 +70,7 @@ export default function ItemPage() {
 
   const { data: item, isLoading: isItemLoading, refetch } = useDoc<Item>(itemRef);
 
-  const handleRequestSubmit: SubmitHandler<RequestFormData> = async (data) => {
+  const handleRequestSubmit: SubmitHandler<RequestFormData> = (data) => {
     if (!item || !user || !firestore) return;
     
     const requestsCollectionRef = collection(firestore, 'materials', item.id, 'requests');
@@ -88,8 +88,13 @@ export default function ItemPage() {
         const result = await incrementSolicitudes(item.id);
         
         if (!result.success) {
-            // If the server action fails, we throw an error to be caught by the catch block.
-            throw new Error(result.error || 'No se pudo actualizar el contador.');
+            // If the server action fails, we show a toast but don't block the user.
+            // The main request succeeded.
+            toast({
+                variant: 'destructive',
+                title: 'Error de Sincronización',
+                description: result.error || 'No se pudo actualizar el contador de solicitudes, pero tu solicitud fue enviada.',
+            });
         }
 
         toast({
@@ -101,10 +106,8 @@ export default function ItemPage() {
         reset();
         refetch(); // Refresh item data to show the updated count.
     })
-    .catch((error: any) => {
-        console.error("Error al procesar la solicitud: ", error);
-        
-        // Emit a permission error for standardized handling if it's a Firestore security rule issue.
+    .catch((serverError: any) => {
+        // This is where we create and emit the contextual permission error.
         const permissionError = new FirestorePermissionError({
             path: requestsCollectionRef.path,
             operation: 'create',
@@ -112,6 +115,7 @@ export default function ItemPage() {
         });
         errorEmitter.emit('permission-error', permissionError);
         
+        // Also show a generic error toast to the user
         toast({
           variant: 'destructive',
           title: 'Error al enviar la solicitud',
@@ -295,3 +299,5 @@ export default function ItemPage() {
     </div>
   );
 }
+
+    
