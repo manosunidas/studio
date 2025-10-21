@@ -1,10 +1,10 @@
+
 'use server';
 
 /**
- * @fileOverview A Genkit flow to "send" an email notification for a new item request.
+ * @fileOverview A Genkit flow to send a real email notification for a new item request using Resend.
  *
- * This flow simulates sending an email to the administrator when a user requests an item.
- * In a real-world scenario, this would integrate with an email service like SendGrid or Nodemailer.
+ * This flow sends an email to the administrator when a user requests an item.
  *
  * - `sendRequestEmail`: The main function to trigger the email sending flow.
  * - `SendRequestEmailInput`: The input type for the flow.
@@ -13,6 +13,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { Resend } from 'resend';
 
 // Input schema for the flow
 export const SendRequestEmailInputSchema = z.object({
@@ -27,7 +28,7 @@ export type SendRequestEmailInput = z.infer<typeof SendRequestEmailInputSchema>;
 
 // Output schema for the flow
 export const SendRequestEmailOutputSchema = z.object({
-  success: z.boolean().describe('Whether the email was "sent" successfully.'),
+  success: z.boolean().describe('Whether the email was sent successfully.'),
   message: z.string().describe('A message indicating the result.'),
 });
 
@@ -46,46 +47,60 @@ const sendRequestEmailFlow = ai.defineFlow(
     outputSchema: SendRequestEmailOutputSchema,
   },
   async (input) => {
+    const resendApiKey = process.env.RESEND_API_KEY;
+
+    if (!resendApiKey) {
+      console.error('Resend API key is not configured. Please set RESEND_API_KEY environment variable.');
+      // Return a failure but don't throw, so the client can handle it gracefully.
+      return {
+        success: false,
+        message: 'El servidor no está configurado para enviar correos. Contacta al administrador.',
+      };
+    }
+
+    const resend = new Resend(resendApiKey);
     const adminEmail = 'jhelenandreat@gmail.com';
 
-    // Construct the email body
-    const emailBody = `
-      =================================
-      Nueva Solicitud de Artículo
-      =================================
-      Has recibido una nueva solicitud para un artículo publicado en Manos Unidas Digital.
+    // Construct the email body as plain text
+    const emailBodyText = `
+Nueva Solicitud de Artículo en Manos Unidas Digital
+=================================================
 
-      Detalles del Artículo:
-      - Nombre: ${input.itemName}
-      - ID: ${input.itemId}
+Has recibido una nueva solicitud para un artículo.
 
-      Datos del Solicitante:
-      - Nombre: ${input.requesterName}
-      - Dirección: ${input.requesterAddress}
-      - Teléfono: ${input.requesterPhone}
+Detalles del Artículo:
+- Nombre: ${input.itemName}
+- ID: ${input.itemId}
 
-      Próximos Pasos:
-      1. Contacta al solicitante para coordinar la entrega.
-      2. Una vez entregado, ingresa a tu panel de administrador y marca el artículo como "Asignado".
-      =================================
-    `;
+Datos del Solicitante:
+- Nombre: ${input.requesterName}
+- Dirección: ${input.requesterAddress}
+- Teléfono: ${input.requesterPhone}
 
-    // ** SIMULATION **
-    // In a real application, you would use a service like Nodemailer, SendGrid, or Resend
-    // to send an actual email. For this simulation, we will just log the details to the console
-    // as if an email were sent.
-    console.log(`\n--- SIMULANDO ENVÍO DE CORREO ---`);
-    console.log(`Para: ${adminEmail}`);
-    console.log(`Asunto: Nueva Solicitud de Artículo: ${input.itemName}`);
-    console.log(`Cuerpo: ${emailBody}`);
-    console.log(`--- FIN DE SIMULACIÓN ---\n`);
+Próximos Pasos:
+1. Contacta al solicitante para coordinar la entrega.
+2. Una vez entregado, ingresa a tu panel de administrador y marca el artículo como "Asignado".
+    `.trim();
 
-    // You could also use another Genkit model to generate a more "human" email body
-    // but for this purpose, a template is sufficient.
+    try {
+      await resend.emails.send({
+        from: 'Manos Unidas Digital <onboarding@resend.dev>', // Required by Resend for free tier
+        to: adminEmail,
+        subject: `Nueva Solicitud de Artículo: ${input.itemName}`,
+        text: emailBodyText, // Use the plain text version
+      });
 
-    return {
-      success: true,
-      message: `Simulated email sent to ${adminEmail}`,
-    };
+      return {
+        success: true,
+        message: `Email sent to ${adminEmail}`,
+      };
+    } catch (error) {
+      console.error("Error sending email via Resend:", error);
+      // Return a structured error to the client
+      return {
+        success: false,
+        message: 'Hubo un error al intentar enviar el correo de notificación.',
+      };
+    }
   }
 );

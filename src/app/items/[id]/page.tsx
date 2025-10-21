@@ -74,7 +74,7 @@ export default function ItemPage() {
     return doc(firestore, 'materials', id);
   }, [firestore, id]);
 
-  const { data: item, isLoading: isItemLoading, refetch } = useDoc<Item>(itemRef);
+  const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
 
   const handleRequestSubmit: SubmitHandler<RequestFormData> = async (data) => {
     if (!item) return;
@@ -91,13 +91,17 @@ export default function ItemPage() {
     }
 
     try {
-      await sendRequestEmail({
+      const result = await sendRequestEmail({
         requesterName: data.nombreCompleto,
         requesterAddress: data.direccion,
         requesterPhone: data.telefono,
         itemName: item.title,
         itemId: item.id,
       });
+
+      if (!result.success) {
+          throw new Error(result.message || 'No se pudo enviar el correo de solicitud.');
+      }
 
       toast({
           title: '¡Solicitud Enviada!',
@@ -107,12 +111,12 @@ export default function ItemPage() {
       setRequestDialogOpen(false);
       reset();
 
-    } catch(e) {
+    } catch(e: any) {
         console.error("Error sending request email:", e);
         toast({
           variant: 'destructive',
           title: 'Error al enviar la solicitud',
-          description: 'Hubo un problema al procesar tu solicitud. Por favor, inténtalo de nuevo.',
+          description: e.message || 'Hubo un problema al procesar tu solicitud. Por favor, inténtalo de nuevo.',
         });
     }
   };
