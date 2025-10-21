@@ -1,7 +1,6 @@
 import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
-import { serviceAccount } from './service-account';
 
 // IMPORTANT: This file should not be used in the client-side of your application.
 
@@ -11,9 +10,7 @@ let app: App;
 // It checks if the app is already initialized to prevent re-initialization.
 export async function initializeAdminApp() {
   if (!getApps().length) {
-    app = initializeApp({
-      credential: cert(serviceAccount),
-    });
+    app = initializeApp();
   } else {
     app = getApps()[0];
   }
