@@ -13,8 +13,9 @@ import { Heart, User, MapPin, Tag, ArrowLeft, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { doc, addDoc, updateDoc, collection, serverTimestamp, increment } from 'firebase/firestore';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { createRequestAction } from '@/app/actions';
 
 import {
   Dialog,
@@ -54,40 +55,26 @@ export default function ItemPage() {
     return doc(firestore, 'materials', id);
   }, [firestore, id]);
 
-  const { data: item, isLoading: isItemLoading, refetch } = useDoc<Item>(itemRef);
+  const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
 
   const handleRequestSubmit: SubmitHandler<RequestFormData> = async (data) => {
-    if (!firestore || !item || !user) return;
+    if (!item || !user) return;
 
-    const requestsCollectionRef = collection(firestore, 'materials', id, 'requests');
-    const newRequestData = {
-        ...data,
-        materialId: id,
-        fechaSolicitud: serverTimestamp(),
-        status: 'Pendiente' as const,
-        solicitanteId: user.uid,
-    };
-    
-    try {
-        await addDoc(requestsCollectionRef, newRequestData);
-        await updateDoc(doc(firestore, 'materials', id), {
-            solicitudes: increment(1)
-        });
-        
-        toast({
-            title: '¡Solicitud enviada!',
-            description: 'El donante ha sido notificado. Gracias por tu interés.',
-        });
-        reset();
-        setRequestDialogOpen(false);
-        refetch(); // Refresca los datos del artículo para mostrar el contador actualizado
-    } catch (serverError: any) {
-        const permissionError = new FirestorePermissionError({
-            path: requestsCollectionRef.path,
-            operation: 'create',
-            requestResourceData: newRequestData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+    const result = await createRequestAction(id, data, user.uid);
+
+    if (result.success) {
+      toast({
+        title: '¡Solicitud enviada!',
+        description: 'El donante ha sido notificado. Gracias por tu interés.',
+      });
+      reset();
+      setRequestDialogOpen(false);
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Error al enviar la solicitud',
+        description: result.message,
+      });
     }
   };
   
