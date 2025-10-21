@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
 import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { doc, collection, addDoc, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { createRequest } from '@/app/actions/create-request';
 
 import {
   Dialog,
@@ -57,35 +58,18 @@ export default function ItemPage() {
   const { data: item, isLoading: isItemLoading, refetch } = useDoc<Item>(itemRef);
 
   const handleRequestSubmit: SubmitHandler<RequestFormData> = async (data) => {
-    if (!firestore || !item) {
+    if (!item) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'No se pudo conectar a la base de datos.',
+        description: 'No se encontró el artículo.',
       });
       return;
     }
 
-    const requestsCollectionRef = collection(firestore, 'materials', item.id, 'requests');
-    const itemDocRef = doc(firestore, 'materials', item.id);
+    const result = await createRequest({ ...data, materialId: item.id });
 
-    const newRequestData = {
-        ...data,
-        materialId: item.id,
-        fechaSolicitud: serverTimestamp(),
-        status: 'Pendiente' as const,
-        solicitanteId: user?.uid || 'public_request',
-    };
-
-    try {
-      // Create the new request document
-      await addDoc(requestsCollectionRef, newRequestData);
-      
-      // Increment the 'solicitudes' counter on the material
-      await updateDoc(itemDocRef, {
-        solicitudes: increment(1)
-      });
-
+    if (result.success) {
       toast({
         title: '¡Solicitud enviada!',
         description: 'Tu solicitud ha sido registrada. El donante será notificado.',
@@ -93,22 +77,12 @@ export default function ItemPage() {
       setRequestDialogOpen(false);
       reset();
       refetch();
-    } catch (error: any) {
-        console.error("Error creating request:", error);
-        // This is a client-side error, so we can show a toast
-        toast({
-            variant: "destructive",
-            title: "Error al enviar la solicitud",
-            description: "No se pudo registrar la solicitud. Por favor, inténtelo de nuevo más tarde.",
-        });
-
-        // Optional: emit a more detailed error for debugging if needed
-        const permissionError = new FirestorePermissionError({
-            path: requestsCollectionRef.path,
-            operation: 'create',
-            requestResourceData: newRequestData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Error al enviar la solicitud",
+        description: result.message || "No se pudo registrar la solicitud. Por favor, inténtelo de nuevo más tarde.",
+      });
     }
   };
   
@@ -247,5 +221,3 @@ export default function ItemPage() {
     </div>
   );
 }
-
-    
