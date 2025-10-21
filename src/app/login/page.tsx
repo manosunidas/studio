@@ -41,6 +41,9 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    });
     try {
       const result = await signInWithPopup(auth, provider);
       const signedInUser = result.user;
@@ -89,5 +92,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-    
