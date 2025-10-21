@@ -65,7 +65,7 @@ export default function ItemPage() {
 
   const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
 
-  const handleRequest = async (data: RequestFormData) => {
+  const handleRequest = (data: RequestFormData) => {
     if (!id || !firestore || !user) {
         toast({
             variant: 'destructive',
@@ -130,7 +130,7 @@ export default function ItemPage() {
             src={item.imageUrl}
             alt={item.title}
             fill
-            className="object-cover"
+            className="object-cover rounded-lg"
             sizes="(max-width: 768px) 100vw, 50vw"
             data-ai-hint={item.imageHint}
           />
