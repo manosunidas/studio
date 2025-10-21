@@ -1,4 +1,4 @@
-import { initializeApp, getApps, App, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
@@ -8,6 +8,8 @@ let app: App;
 
 // This function initializes the Firebase Admin SDK.
 // It checks if the app is already initialized to prevent re-initialization.
+// In a managed environment like App Hosting, initializeApp() with no arguments
+// automatically discovers service credentials.
 export async function initializeAdminApp() {
   if (!getApps().length) {
     app = initializeApp();
