@@ -13,8 +13,9 @@ import { Heart, User, MapPin, Tag, ArrowLeft, Mail, Users, LogIn } from 'lucide-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useAuth } from '@/firebase';
 import { doc, addDoc, collection, serverTimestamp, runTransaction, updateDoc, increment } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 
 
 import {
@@ -41,6 +42,7 @@ export default function ItemPage() {
   const params = useParams();
   const id = params.id as string;
   const firestore = useFirestore();
+  const auth = useAuth();
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
@@ -50,13 +52,31 @@ export default function ItemPage() {
   const { register, handleSubmit, formState: { errors }, setValue } = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema)
   });
+  
+  const [localUser, setLocalUser] = useState(user);
 
   useEffect(() => {
-    // For admins, pre-fill their name. For anonymous users, they will type it.
+    // If there's no logged-in user and auth is ready, sign in anonymously.
+    if (!isUserLoading && !user && auth) {
+      signInAnonymously(auth).catch((error) => {
+        console.error("Anonymous sign-in failed", error);
+        toast({
+            variant: 'destructive',
+            title: 'Error de Autenticación',
+            description: 'No se pudo iniciar sesión anónimamente. Por favor, recarga la página.',
+        });
+      });
+    }
+  }, [user, isUserLoading, auth, toast]);
+
+  useEffect(() => {
+    // When the main user object changes (e.g., anonymous sign-in completes), update local state.
+    setLocalUser(user);
     if (user && !user.isAnonymous) {
       setValue('nombreCompleto', user.displayName || '');
     }
   }, [user, setValue]);
+
 
   const itemRef = useMemoFirebase(() => {
     if (!firestore || !id) return null;
@@ -66,7 +86,7 @@ export default function ItemPage() {
   const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
 
   const handleRequest = (data: RequestFormData) => {
-    if (!id || !firestore || !user) {
+    if (!id || !firestore || !localUser) {
         toast({
             variant: 'destructive',
             title: 'Error',
@@ -81,9 +101,9 @@ export default function ItemPage() {
 
     const newRequestData = {
       materialId: id,
-      solicitanteId: user.uid,
+      solicitanteId: localUser.uid, // CRITICAL: Use the user's UID
       nombreCompleto: data.nombreCompleto,
-      ...(user.email && { emailSolicitante: user.email }),
+      ...(localUser.email && { emailSolicitante: localUser.email }),
       direccion: data.direccion,
       telefono: data.telefono,
       fechaSolicitud: serverTimestamp(),
@@ -100,7 +120,6 @@ export default function ItemPage() {
       });
       setRequestDialogOpen(false);
     }).catch((serverError: any) => {
-      // This is where we catch permission errors and create a contextual error.
       const permissionError = new FirestorePermissionError({
           path: requestsCollectionRef.path,
           operation: 'create',
@@ -113,14 +132,15 @@ export default function ItemPage() {
     });
   };
   
-  if (isItemLoading || isUserLoading || !item) {
+  if (isItemLoading || !item) {
     return <div className="container text-center py-20">Cargando artículo...</div>;
   }
   
-  const isAdmin = user?.email === 'jhelenandreat@gmail.com';
+  const isAdmin = localUser?.email === 'jhelenandreat@gmail.com';
   const isAvailable = item.status === 'Disponible';
+  // A user can request if the item is available, they are not the admin,
+  // AND the user session (anonymous or admin) has loaded.
   const canRequest = isAvailable && !isAdmin;
-
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-12 md:py-20">
@@ -156,9 +176,9 @@ export default function ItemPage() {
                    {canRequest && (
                       <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
                         <DialogTrigger asChild>
-                          <Button size="lg" disabled={isUserLoading}>
+                           <Button size="lg" disabled={isUserLoading || !localUser}>
                             <Heart className="mr-2 h-5 w-5" />
-                            {isUserLoading ? 'Verificando...' : 'Solicitar Artículo'}
+                            {isUserLoading || !localUser ? 'Verificando...' : 'Solicitar Artículo'}
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-[425px]">
@@ -172,13 +192,13 @@ export default function ItemPage() {
                             <div className="grid gap-4 py-4">
                                <div className="grid gap-2">
                                 <Label htmlFor="nombreCompleto">Nombre Completo</Label>
-                                <Input id="nombreCompleto" {...register('nombreCompleto')} disabled={isSubmitting || (!!user && !user.isAnonymous)} placeholder="Tu nombre completo" />
+                                <Input id="nombreCompleto" {...register('nombreCompleto')} disabled={isSubmitting || (!!localUser && !localUser.isAnonymous)} placeholder="Tu nombre completo" />
                                 {errors.nombreCompleto && <p className="text-sm text-destructive">{errors.nombreCompleto.message}</p>}
                                </div>
-                               {user?.email && (
+                               {localUser?.email && (
                                 <div className="grid gap-2">
                                   <Label>Email</Label>
-                                  <Input value={user.email} disabled />
+                                  <Input value={localUser.email} disabled />
                                 </div>
                                )}
                               <div className="grid gap-2">
@@ -193,7 +213,7 @@ export default function ItemPage() {
                               </div>
                             </div>
                             <DialogFooter>
-                              <Button type="submit" disabled={isSubmitting}>
+                              <Button type="submit" disabled={isSubmitting || !localUser}>
                                 {isSubmitting ? 'Enviando...' : 'Confirmar Solicitud'}
                               </Button>
                             </DialogFooter>
