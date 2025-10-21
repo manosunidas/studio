@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter, useParams } from 'next/navigation';
 import { useForm, SubmitHandler } from 'react-hook-form';
@@ -10,13 +10,13 @@ import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Heart, User, MapPin, Tag, ArrowLeft, Users, Copy, Mail, LogIn, ShieldAlert } from 'lucide-react';
+import { Heart, Tag, ArrowLeft, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { doc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { incrementSolicitudes } from '@/app/actions';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { sendRequestEmail } from '@/ai/flows/send-request-email';
 
 import {
   Dialog,
@@ -37,6 +37,7 @@ const requestSchema = z.object({
   nombreCompleto: z.string().min(3, 'El nombre es obligatorio'),
   direccion: z.string().min(5, 'La dirección es obligatoria'),
   telefono: z.string().min(7, 'El teléfono es obligatorio'),
+  captcha: z.string().min(1, 'La respuesta del captcha es obligatoria'),
 });
 
 type RequestFormData = z.infer<typeof requestSchema>;
@@ -48,19 +49,24 @@ export default function ItemPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isRequestDialogOpen, setRequestDialogOpen] = useState(false);
+  
+  // State for captcha
+  const [num1, setNum1] = useState(0);
+  const [num2, setNum2] = useState(0);
 
-  const { user, isAdmin, isUserLoading } = useUser();
+  const { isAdmin, isUserLoading } = useUser();
 
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue } = useForm<RequestFormData>({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),
   });
-
-  // Pre-fill form if user is logged in
-  useState(() => {
-    if (user && !user.isAnonymous) {
-        setValue('nombreCompleto', user.displayName || '');
+  
+  useEffect(() => {
+    // Generate new captcha numbers when the dialog opens
+    if (isRequestDialogOpen) {
+      setNum1(Math.floor(Math.random() * 10) + 1);
+      setNum2(Math.floor(Math.random() * 10) + 1);
     }
-  });
+  }, [isRequestDialogOpen]);
 
 
   const itemRef = useMemoFirebase(() => {
@@ -70,58 +76,45 @@ export default function ItemPage() {
 
   const { data: item, isLoading: isItemLoading, refetch } = useDoc<Item>(itemRef);
 
-  const handleRequestSubmit: SubmitHandler<RequestFormData> = (data) => {
-    if (!item || !user || !firestore) return;
-    
-    const requestsCollectionRef = collection(firestore, 'materials', item.id, 'requests');
-    const newRequestData = {
-        ...data,
-        materialId: item.id,
-        fechaSolicitud: serverTimestamp(),
-        status: 'Pendiente' as const,
-        solicitanteId: user.uid,
-    };
+  const handleRequestSubmit: SubmitHandler<RequestFormData> = async (data) => {
+    if (!item) return;
 
-    addDoc(requestsCollectionRef, newRequestData)
-    .then(async () => {
-        // After successfully creating the request, call the server action to sync the count.
-        const result = await incrementSolicitudes(item.id);
-        
-        if (!result.success) {
-            // If the server action fails, we show a toast but don't block the user.
-            // The main request succeeded.
-            toast({
-                variant: 'destructive',
-                title: 'Error de Sincronización',
-                description: result.error || 'No se pudo actualizar el contador de solicitudes, pero tu solicitud fue enviada.',
-            });
-        }
+    // CAPTCHA validation
+    const correctAnswer = num1 + num2;
+    if (parseInt(data.captcha, 10) !== correctAnswer) {
+      toast({
+        variant: 'destructive',
+        title: 'Captcha Incorrecto',
+        description: 'Por favor, resuelve la suma correctamente.',
+      });
+      return;
+    }
 
-        toast({
-            title: '¡Solicitud Enviada!',
-            description: 'Tu solicitud ha sido registrada y el donante será notificado.',
-        });
+    try {
+      await sendRequestEmail({
+        requesterName: data.nombreCompleto,
+        requesterAddress: data.direccion,
+        requesterPhone: data.telefono,
+        itemName: item.title,
+        itemId: item.id,
+      });
+
+      toast({
+          title: '¡Solicitud Enviada!',
+          description: 'Tu solicitud ha sido enviada al administrador para su revisión.',
+      });
         
-        setRequestDialogOpen(false);
-        reset();
-        refetch(); // Refresh item data to show the updated count.
-    })
-    .catch((serverError: any) => {
-        // This is where we create and emit the contextual permission error.
-        const permissionError = new FirestorePermissionError({
-            path: requestsCollectionRef.path,
-            operation: 'create',
-            requestResourceData: newRequestData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        
-        // Also show a generic error toast to the user
+      setRequestDialogOpen(false);
+      reset();
+
+    } catch(e) {
+        console.error("Error sending request email:", e);
         toast({
           variant: 'destructive',
           title: 'Error al enviar la solicitud',
-          description: 'No tienes permisos para realizar esta acción o ha ocurrido un problema.',
+          description: 'Hubo un problema al procesar tu solicitud. Por favor, inténtalo de nuevo.',
         });
-    });
+    }
   };
   
   if (isItemLoading || isUserLoading) {
@@ -133,20 +126,10 @@ export default function ItemPage() {
   }
   
   const isAvailable = item.status === 'Disponible';
-  const isUserLoggedIn = user && !user.isAnonymous;
 
   const renderRequestButton = () => {
     if (!isAvailable) {
       return null;
-    }
-    
-    if (!isUserLoggedIn) {
-      return (
-        <Button size="lg" onClick={() => router.push('/login')}>
-          <LogIn className="mr-2 h-5 w-5" />
-          Iniciar Sesión para Solicitar
-        </Button>
-      );
     }
     
     if (isAdmin) {
@@ -169,6 +152,7 @@ export default function ItemPage() {
        )
     }
 
+    // Button for anonymous users
     return (
         <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
             <DialogTrigger asChild>
@@ -180,9 +164,9 @@ export default function ItemPage() {
             <DialogContent className="sm:max-w-[425px]">
               <form onSubmit={handleSubmit(handleRequestSubmit)}>
                 <DialogHeader>
-                  <DialogTitle>Confirmar Solicitud</DialogTitle>
+                  <DialogTitle>Formulario de Solicitud</DialogTitle>
                   <DialogDescription>
-                    Verifica tus datos de contacto. Serán enviados al donante para coordinar la entrega.
+                    Tus datos de contacto serán enviados al administrador para coordinar la entrega.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -201,11 +185,17 @@ export default function ItemPage() {
                     <Input id="telefono" {...register('telefono')} placeholder="Tu número de teléfono" />
                      {errors.telefono && <p className="text-sm text-destructive">{errors.telefono.message}</p>}
                   </div>
+                   <div className="grid gap-2 p-3 bg-muted rounded-md">
+                    <Label htmlFor="captcha">Verificación (Captcha)</Label>
+                    <p className="text-sm text-muted-foreground">¿Cuánto es {num1} + {num2}?</p>
+                    <Input id="captcha" type="number" {...register('captcha')} placeholder="Tu respuesta" />
+                     {errors.captcha && <p className="text-sm text-destructive">{errors.captcha.message}</p>}
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setRequestDialogOpen(false)}>Cancelar</Button>
                   <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? 'Enviando...' : 'Confirmar Solicitud'}
+                    {isSubmitting ? 'Enviando...' : 'Enviar Solicitud'}
                   </Button>
                 </DialogFooter>
               </form>
@@ -246,12 +236,8 @@ export default function ItemPage() {
                 </div>
             </div>
             <p className="text-lg text-muted-foreground mt-2">
-              Publicado por <span className="font-semibold text-primary">{item.postedByName || 'Usuario'}</span>
+              Publicado por <span className="font-semibold text-primary">{item.postedByName || 'Donante Anónimo'}</span>
             </p>
-             <div className="flex items-center gap-2 mt-4">
-                <Users className="w-5 h-5 text-muted-foreground"/>
-                <span className="font-semibold">{item.solicitudes || 0} personas han solicitado este artículo.</span>
-            </div>
           </div>
             <div className="mt-auto">
              {renderRequestButton()}
@@ -284,14 +270,9 @@ export default function ItemPage() {
             </CardContent>
           </Card>
            
-           {!isAvailable && item.asignadoA && (
+           {item.status === 'Asignado' && (
             <div className="p-4 bg-yellow-100 dark:bg-yellow-900/50 border border-yellow-300 dark:border-yellow-700 rounded-lg text-center text-yellow-800 dark:text-yellow-200">
-              Artículo asignado a la solicitud con ID: <span className="font-mono text-sm bg-yellow-200 dark:bg-yellow-800 px-2 py-1 rounded">{item.asignadoA.substring(0, 8)}...</span>
-            </div>
-          )}
-           {!isAvailable && !item.asignadoA && (
-            <div className="p-4 bg-yellow-100 dark:bg-yellow-900/50 border border-yellow-300 dark:border-yellow-700 rounded-lg text-center text-yellow-800 dark:text-yellow-200">
-              Este artículo ya ha sido asignado.
+              Este artículo ya fue asignado por el administrador.
             </div>
           )}
         </div>
@@ -299,5 +280,3 @@ export default function ItemPage() {
     </div>
   );
 }
-
-    

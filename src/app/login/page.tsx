@@ -29,10 +29,8 @@ export default function LoginPage() {
         });
         router.replace('/profile');
       } else {
-         toast({
-          title: 'Ya has iniciado sesión',
-          description: 'Redirigiendo a la página de inicio.',
-        });
+         // Non-admin users are not supposed to log in.
+         // If they somehow do, just send them to the home page.
         router.replace('/');
       }
     }
@@ -55,9 +53,12 @@ export default function LoginPage() {
           });
           router.push('/profile');
       } else {
+          // If a non-admin user signs in, show a message and keep them on the homepage
+          await auth.signOut();
           toast({
-            title: 'Inicio de sesión exitoso',
-            description: '¡Bienvenido a Manos Unidas!',
+            variant: 'destructive',
+            title: 'Acceso no autorizado',
+            description: 'Solo los administradores pueden iniciar sesión.',
           });
           router.push('/');
       }
@@ -78,9 +79,9 @@ export default function LoginPage() {
     <div className="flex items-center justify-center min-h-[calc(100vh-14rem)] py-12">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-headline">Iniciar Sesión</CardTitle>
+          <CardTitle className="text-2xl font-headline">Iniciar Sesión (Admin)</CardTitle>
           <CardDescription>
-            Usa tu cuenta de Google para acceder a la plataforma.
+            Usa tu cuenta de Google de administrador para acceder al panel.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">

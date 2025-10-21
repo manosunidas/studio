@@ -3,7 +3,7 @@
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
 interface FirebaseProviderProps {
@@ -72,7 +72,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
            const isAdmin = firebaseUser.email === 'jhelenandreat@gmail.com';
           setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null, isAdmin });
         } else {
-          // If no user is logged in, the user is null. No anonymous sign-in.
+          // No user is logged in
           setUserAuthState({ user: null, isUserLoading: false, userError: null, isAdmin: false });
         }
       },
@@ -168,5 +168,3 @@ export const useUser = (): UserHookResult => {
   const { user, isUserLoading, userError, isAdmin } = useFirebase(); // Leverages the main hook
   return { user, isUserLoading, userError, isAdmin };
 };
-
-    

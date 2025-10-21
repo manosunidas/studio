@@ -5,7 +5,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents a user in the Manos Unidas Digital application.",
+      "description": "Represents a user in the Manos Unidas Digital application. Now primarily for the admin.",
       "properties": {
         "id": {
           "type": "string",
@@ -41,7 +41,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Material",
       "type": "object",
-      "description": "Represents a school supply or uniform item available for donation or exchange.",
+      "description": "Represents a school supply or uniform item available for donation.",
       "properties": {
         "id": {
           "type": "string",
@@ -49,7 +49,7 @@
         },
         "postedBy": {
           "type": "string",
-          "description": "The UID of the user who posted the material. (Reference to User)"
+          "description": "The UID of the admin user who posted the material. (Reference to User)"
         },
         "title": {
           "type": "string",
@@ -80,14 +80,6 @@
           "enum": ["Disponible", "Asignado"],
           "description": "The status of the material."
         },
-        "solicitudes": {
-          "type": "number",
-          "description": "The number of requests for this material."
-        },
-        "asignadoA": {
-          "type": "string",
-          "description": "The ID of the request to which this material was assigned."
-        },
         "datePosted": {
           "type": "string",
           "description": "The date and time when the material was posted.",
@@ -104,52 +96,7 @@
         "condition",
         "imageUrl",
         "status",
-        "solicitudes",
         "datePosted"
-      ]
-    },
-    "Solicitud": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Solicitud",
-      "description": "Represents a request made by a user for a material.",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "materialId": {
-          "type": "string"
-        },
-        "fechaSolicitud": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "nombreCompleto": {
-          "type": "string"
-        },
-        "direccion": {
-          "type": "string"
-        },
-        "telefono": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string",
-          "enum": [
-            "Pendiente",
-            "Rechazada"
-          ],
-          "description": "The status of the request."
-        }
-      },
-      "required": [
-        "id",
-        "materialId",
-        "fechaSolicitud",
-        "nombreCompleto",
-        "direccion",
-        "telefono",
-        "status"
       ]
     }
   },
@@ -167,7 +114,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profile information. Only the authenticated user can read/write their own document.",
+          "description": "Stores user profile information, primarily for the admin. Only the admin can write to their own document.",
           "params": [
             {
               "name": "userId",
@@ -183,29 +130,15 @@
           "schema": {
             "$ref": "#/backend/entities/Material"
           },
-          "description": "Stores material listings. Includes the userId for authorization. Anyone can read material, but only the user who posted the material can modify or delete it.",
+          "description": "Stores material listings. Anyone can read, but only the admin can create, modify, or delete.",
           "params": [
             {
               "name": "materialId",
               "description": "The unique identifier for the material."
             }
           ]
-        },
-        "subcollections": [
-          {
-            "path": "/materials/{materialId}/requests/{requestId}",
-            "definition": {
-              "entityName": "Solicitud",
-              "schema": {
-                "$ref": "#/backend/entities/Solicitud"
-              },
-              "description": "Stores requests for a material. Anyone can create a request, but only the material owner can read them."
-            }
-          }
-        ]
+        }
       }
     ]
   }
 }
-
-    

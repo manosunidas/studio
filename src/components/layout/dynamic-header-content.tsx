@@ -24,7 +24,7 @@ export function DynamicHeaderContent() {
   const pathname = usePathname();
   const router = useRouter();
   const [isSheetOpen, setSheetOpen] = useState(false);
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading, isAdmin } = useUser();
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
 
@@ -37,7 +37,7 @@ export function DynamicHeaderContent() {
       await signOut(getAuth());
       toast({
         title: 'Sesión cerrada',
-        description: 'Has cerrado sesión exitosamente. Serás un usuario anónimo.',
+        description: 'Has cerrado sesión exitosamente.',
       });
       router.push('/');
     } catch (error) {
@@ -69,18 +69,15 @@ export function DynamicHeaderContent() {
   );
 
   const renderDynamicContent = () => {
-    const isAdmin = user && !user.isAnonymous;
     const navLinks = [
       { href: '/', label: 'Inicio', className: "text-lg" },
       ...(isAdmin ? [{ href: '/profile', label: 'Mi Panel', className: "text-lg" }] : []),
     ];
 
-    if (isUserLoading) {
+    if (isUserLoading || !isMounted) {
        return (
          <div className="flex items-center gap-4">
-             <div className="w-24 h-8 bg-muted rounded-md animate-pulse md:w-32"></div>
-             <div className="w-12 h-12 bg-muted rounded-full animate-pulse hidden md:block"></div>
-             <div className="w-8 h-8 bg-muted rounded-md animate-pulse md:hidden"></div>
+             <div className="w-48 h-10 bg-muted rounded-md animate-pulse"></div>
          </div>
        )
     }
@@ -100,17 +97,17 @@ export function DynamicHeaderContent() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-12 w-12 rounded-full">
                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'Avatar'} />
-                        <AvatarFallback className="text-xl">{getInitials(user.displayName)}</AvatarFallback>
+                        <AvatarImage src={user?.photoURL || ''} alt={user?.displayName || 'Avatar'} />
+                        <AvatarFallback className="text-xl">{getInitials(user?.displayName)}</AvatarFallback>
                       </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>
                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">{user.displayName}</p>
+                        <p className="text-sm font-medium leading-none">{user?.displayName}</p>
                         <p className="text-xs leading-none text-muted-foreground">
-                          {user.email}
+                          {user?.email}
                         </p>
                       </div>
                   </DropdownMenuLabel>
@@ -123,8 +120,8 @@ export function DynamicHeaderContent() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button variant="ghost" asChild>
-                <Link href="/login" className="text-lg">Iniciar Sesión (Admin)</Link>
+               <Button asChild>
+                <Link href="/login">Iniciar Sesión (Admin)</Link>
               </Button>
             )}
           </div>
@@ -154,11 +151,11 @@ export function DynamicHeaderContent() {
                     <div className="flex flex-col gap-4">
                       <Link href="/profile" className="flex items-center gap-4 text-lg font-medium" onClick={() => setSheetOpen(false)}>
                         <Avatar className="h-12 w-12">
-                            <AvatarImage src={user.photoURL || ''} alt={user.displayName || 'Avatar'} />
-                            <AvatarFallback className="text-xl">{getInitials(user.displayName)}</AvatarFallback>
+                            <AvatarImage src={user?.photoURL || ''} alt={user?.displayName || 'Avatar'} />
+                            <AvatarFallback className="text-xl">{getInitials(user?.displayName)}</AvatarFallback>
                         </Avatar>
                         <div>
-                             <p className="text-base font-semibold">{user.displayName}</p>
+                             <p className="text-base font-semibold">{user?.displayName}</p>
                              <p className="text-sm text-muted-foreground">Ir al Panel</p>
                         </div>
                       </Link>
@@ -180,15 +177,5 @@ export function DynamicHeaderContent() {
     );
   };
   
-  if (!isMounted) {
-    return (
-        <div className="flex items-center gap-4">
-            <div className="w-24 h-8 bg-muted rounded-md animate-pulse md:w-32"></div>
-            <div className="w-12 h-12 bg-muted rounded-full animate-pulse hidden md:block"></div>
-            <div className="w-8 h-8 bg-muted rounded-md animate-pulse md:hidden"></div>
-        </div>
-    );
-  }
-
   return renderDynamicContent();
 }

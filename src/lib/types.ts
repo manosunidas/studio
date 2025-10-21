@@ -19,24 +19,21 @@ export interface Item {
   postedByName?: string; // User's display name
   datePosted: Timestamp;
   status: ItemStatus;
-  solicitudes: number;
-  asignadoA?: string;
 };
 
-export type SolicitudStatus = 'Pendiente' | 'Rechazada';
+// Solicitud and SolicitudStatus are no longer needed as requests are handled via email
+// export type SolicitudStatus = 'Pendiente' | 'Rechazada';
+//
+// export interface Solicitud {
+//   id: string;
+//   materialId: string;
+//   solicitanteId: string; // UID of the user who made the request
+//   fechaSolicitud: Timestamp;
+//   nombreCompleto: string;
+//   direccion: string;
+//   telefono: string;
+//   status: SolicitudStatus;
+// }
 
-export interface Solicitud {
-  id: string;
-  materialId: string;
-  solicitanteId: string; // UID of the user who made the request
-  fechaSolicitud: Timestamp;
-  nombreCompleto: string;
-  direccion: string;
-  telefono: string;
-  status: SolicitudStatus;
-}
-
-// Keep FirebaseUser as the base for the User type
+// The User type remains based on FirebaseUser for the admin
 export type User = FirebaseUser;
-
-    
