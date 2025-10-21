@@ -3,9 +3,7 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter, useParams } from 'next/navigation';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { useFormState, useFormStatus } from 'react-dom';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,9 +11,9 @@ import { Heart, User, MapPin, Tag, ArrowLeft, Mail, Users, LogIn } from 'lucide-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError, useAuth } from '@/firebase';
-import { doc, addDoc, collection, serverTimestamp, runTransaction, updateDoc, increment } from 'firebase/firestore';
-import { signInAnonymously } from 'firebase/auth';
+import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { createRequest } from '@/app/actions/create-request';
 
 
 import {
@@ -30,116 +28,63 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const requestSchema = z.object({
-  nombreCompleto: z.string().min(3, 'El nombre es obligatorio'),
-  direccion: z.string().min(5, 'La dirección es obligatoria'),
-  telefono: z.string().min(7, 'El teléfono es obligatorio'),
-});
-type RequestFormData = z.infer<typeof requestSchema>;
+const initialState = {
+  message: '',
+  errors: {},
+  success: false,
+};
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" disabled={pending}>
+      {pending ? 'Enviando...' : 'Confirmar Solicitud'}
+    </Button>
+  );
+}
 
 
 export default function ItemPage() {
   const params = useParams();
   const id = params.id as string;
   const firestore = useFirestore();
-  const auth = useAuth();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
   const [isRequestDialogOpen, setRequestDialogOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const { register, handleSubmit, formState: { errors }, setValue } = useForm<RequestFormData>({
-    resolver: zodResolver(requestSchema)
-  });
   
-  const [localUser, setLocalUser] = useState(user);
-
-  useEffect(() => {
-    // If there's no logged-in user and auth is ready, sign in anonymously.
-    if (!isUserLoading && !user && auth) {
-      signInAnonymously(auth).catch((error) => {
-        console.error("Anonymous sign-in failed", error);
-        toast({
-            variant: 'destructive',
-            title: 'Error de Autenticación',
-            description: 'No se pudo iniciar sesión anónimamente. Por favor, recarga la página.',
-        });
-      });
-    }
-  }, [user, isUserLoading, auth, toast]);
-
-  useEffect(() => {
-    // When the main user object changes (e.g., anonymous sign-in completes), update local state.
-    setLocalUser(user);
-    if (user && !user.isAnonymous) {
-      setValue('nombreCompleto', user.displayName || '');
-    }
-  }, [user, setValue]);
-
+  const [state, formAction] = useFormState(createRequest, initialState);
 
   const itemRef = useMemoFirebase(() => {
     if (!firestore || !id) return null;
     return doc(firestore, 'materials', id);
   }, [firestore, id]);
 
-  const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
-
-  const handleRequest = (data: RequestFormData) => {
-    if (!id || !firestore || !localUser) {
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'No se pudo verificar la autenticación. Por favor, recarga la página.',
-        });
-        return;
-    };
-    setIsSubmitting(true);
-    
-    const requestsCollectionRef = collection(firestore, 'materials', id, 'requests');
-    const materialDocRef = doc(firestore, 'materials', id);
-
-    const newRequestData = {
-      materialId: id,
-      solicitanteId: localUser.uid, // CRITICAL: Use the user's UID
-      nombreCompleto: data.nombreCompleto,
-      ...(localUser.email && { emailSolicitante: localUser.email }),
-      direccion: data.direccion,
-      telefono: data.telefono,
-      fechaSolicitud: serverTimestamp(),
-      status: 'Pendiente' as const,
-    };
-    
-    addDoc(requestsCollectionRef, newRequestData).then(() => {
-      // Increment the solicitudes count, non-blocking
-      updateDoc(materialDocRef, { solicitudes: increment(1) });
-      
+  const { data: item, isLoading: isItemLoading, refetch } = useDoc<Item>(itemRef);
+  
+  useEffect(() => {
+    if (state.success) {
       toast({
-          title: '¡Solicitud enviada!',
-          description: 'Tu solicitud ha sido registrada. El donante será notificado.',
+        title: '¡Solicitud enviada!',
+        description: 'Tu solicitud ha sido registrada. El donante será notificado.',
       });
-      setRequestDialogOpen(false);
-    }).catch((serverError: any) => {
-      const permissionError = new FirestorePermissionError({
-          path: requestsCollectionRef.path,
-          operation: 'create',
-          requestResourceData: newRequestData
+      setRequestDialogOpen(false); // Close dialog
+      refetch(); // Refetch item data to show updated request count
+    } else if (state.message && !state.errors) {
+       toast({
+        variant: 'destructive',
+        title: 'Error al enviar la solicitud',
+        description: state.message,
       });
-      errorEmitter.emit('permission-error', permissionError);
-
-    }).finally(() => {
-        setIsSubmitting(false);
-    });
-  };
+    }
+  }, [state, toast, refetch]);
   
   if (isItemLoading || !item) {
     return <div className="container text-center py-20">Cargando artículo...</div>;
   }
   
-  const isAdmin = localUser?.email === 'jhelenandreat@gmail.com';
+  const isAdmin = user?.email === 'jhelenandreat@gmail.com';
   const isAvailable = item.status === 'Disponible';
-  // A user can request if the item is available, they are not the admin,
-  // AND the user session (anonymous or admin) has loaded.
   const canRequest = isAvailable && !isAdmin;
 
   return (
@@ -176,13 +121,14 @@ export default function ItemPage() {
                    {canRequest && (
                       <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
                         <DialogTrigger asChild>
-                           <Button size="lg" disabled={isUserLoading || !localUser}>
+                           <Button size="lg">
                             <Heart className="mr-2 h-5 w-5" />
-                            {isUserLoading || !localUser ? 'Verificando...' : 'Solicitar Artículo'}
+                            Solicitar Artículo
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-[425px]">
-                          <form onSubmit={handleSubmit(handleRequest)}>
+                          <form action={formAction}>
+                            <input type="hidden" name="materialId" value={id} />
                             <DialogHeader>
                               <DialogTitle>Solicitar este artículo</DialogTitle>
                               <DialogDescription>
@@ -192,30 +138,22 @@ export default function ItemPage() {
                             <div className="grid gap-4 py-4">
                                <div className="grid gap-2">
                                 <Label htmlFor="nombreCompleto">Nombre Completo</Label>
-                                <Input id="nombreCompleto" {...register('nombreCompleto')} disabled={isSubmitting || (!!localUser && !localUser.isAnonymous)} placeholder="Tu nombre completo" />
-                                {errors.nombreCompleto && <p className="text-sm text-destructive">{errors.nombreCompleto.message}</p>}
+                                <Input id="nombreCompleto" name="nombreCompleto" placeholder="Tu nombre completo" />
+                                {state.errors?.nombreCompleto && <p className="text-sm text-destructive">{state.errors.nombreCompleto[0]}</p>}
                                </div>
-                               {localUser?.email && (
-                                <div className="grid gap-2">
-                                  <Label>Email</Label>
-                                  <Input value={localUser.email} disabled />
-                                </div>
-                               )}
                               <div className="grid gap-2">
                                 <Label htmlFor="direccion">Dirección de Entrega</Label>
-                                <Input id="direccion" {...register('direccion')} disabled={isSubmitting} placeholder="Tu dirección completa" />
-                                 {errors.direccion && <p className="text-sm text-destructive">{errors.direccion.message}</p>}
+                                <Input id="direccion" name="direccion" placeholder="Tu dirección completa" />
+                                 {state.errors?.direccion && <p className="text-sm text-destructive">{state.errors.direccion[0]}</p>}
                               </div>
                               <div className="grid gap-2">
                                 <Label htmlFor="telefono">Teléfono de Contacto</Label>
-                                <Input id="telefono" {...register('telefono')} disabled={isSubmitting} placeholder="Tu número de teléfono" />
-                                 {errors.telefono && <p className="text-sm text-destructive">{errors.telefono.message}</p>}
+                                <Input id="telefono" name="telefono" placeholder="Tu número de teléfono" />
+                                 {state.errors?.telefono && <p className="text-sm text-destructive">{state.errors.telefono[0]}</p>}
                               </div>
                             </div>
                             <DialogFooter>
-                              <Button type="submit" disabled={isSubmitting || !localUser}>
-                                {isSubmitting ? 'Enviando...' : 'Confirmar Solicitud'}
-                              </Button>
+                              <SubmitButton />
                             </DialogFooter>
                           </form>
                         </DialogContent>
