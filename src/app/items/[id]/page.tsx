@@ -13,9 +13,8 @@ import { Heart, User, MapPin, Tag, ArrowLeft, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import type { Item } from '@/lib/types';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
-import { createRequestAction } from '@/app/actions';
+import { useUser, useDoc, useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { doc, collection, addDoc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
 
 import {
   Dialog,
@@ -55,26 +54,48 @@ export default function ItemPage() {
     return doc(firestore, 'materials', id);
   }, [firestore, id]);
 
-  const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
+  const { data: item, isLoading: isItemLoading, refetch } = useDoc<Item>(itemRef);
 
   const handleRequestSubmit: SubmitHandler<RequestFormData> = async (data) => {
-    if (!item || !user) return;
+    if (!item || !user || !firestore) return;
 
-    const result = await createRequestAction(id, data, user.uid);
+    const requestsCollectionRef = collection(firestore, 'materials', id, 'requests');
+    const newRequestData = {
+      ...data,
+      materialId: id,
+      fechaSolicitud: serverTimestamp(),
+      status: 'Pendiente' as const,
+      solicitanteId: user.uid,
+    };
 
-    if (result.success) {
+    try {
+      // 1. Add the new request document
+      await addDoc(requestsCollectionRef, newRequestData);
+
+      // 2. Increment the request count on the material
+      await updateDoc(itemRef, {
+        solicitudes: increment(1),
+      });
+
       toast({
         title: '¡Solicitud enviada!',
         description: 'El donante ha sido notificado. Gracias por tu interés.',
       });
       reset();
       setRequestDialogOpen(false);
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'Error al enviar la solicitud',
-        description: result.message,
-      });
+      refetch(); // Refresca los datos del artículo para mostrar el contador actualizado
+    } catch (serverError: any) {
+        const permissionError = new FirestorePermissionError({
+            path: requestsCollectionRef.path,
+            operation: 'create',
+            requestResourceData: newRequestData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        toast({
+            variant: 'destructive',
+            title: 'Error al enviar la solicitud',
+            description: 'No se pudieron aplicar los permisos necesarios. Por favor, inténtalo de nuevo.',
+        });
     }
   };
   
@@ -83,6 +104,7 @@ export default function ItemPage() {
   }
   
   const isAvailable = item.status === 'Disponible';
+  const isAdmin = user && !user.isAnonymous;
 
   return (
     <div className="container mx-auto px-4 md:px-6 py-12 md:py-20">
@@ -113,7 +135,7 @@ export default function ItemPage() {
                     <ArrowLeft className="mr-2 h-5 w-5" />
                     Volver
                   </Button>
-                   {isAvailable && (
+                   {isAvailable && !isAdmin && (
                       <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
                         <DialogTrigger asChild>
                            <Button size="lg">
