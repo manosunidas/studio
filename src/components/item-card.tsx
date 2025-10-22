@@ -65,7 +65,7 @@ export function ItemCard({ item, showDelete = false, onDelete, showEdit = false,
             <Badge variant="outline">{item.condition}</Badge>
         </div>
       </CardContent>
-      <CardFooter className="flex gap-2 p-4 pt-0">
+      <CardFooter className="flex flex-shrink-0 gap-2 p-4 pt-0">
         <Button asChild variant="secondary" className="w-full">
           <Link href={`/items/${item.id}`}>
             Ver Detalles <ArrowRight className="ml-2" />
