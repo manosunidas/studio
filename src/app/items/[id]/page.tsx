@@ -272,7 +272,7 @@ export default function ItemPage() {
             src={item.imageUrl}
             alt={item.title}
             fill
-            className="!object-contain h-full w-full rounded-lg"
+            className="!object-contain h-full w-full rounded-lg p-4"
             sizes="(max-width: 768px) 100vw, 50vw"
             data-ai-hint={item.imageHint}
           />
