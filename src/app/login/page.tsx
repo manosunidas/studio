@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { useEffect } from 'react';
 import { useUser } from '@/firebase';
+import { isAdminUser } from '@/lib/admins';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -46,7 +47,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const signedInUser = result.user;
 
-      if (signedInUser.email === 'jhelenandreat@gmail.com') {
+      if (isAdminUser(signedInUser)) {
          toast({
             title: 'Inicio de sesión exitoso',
             description: '¡Bienvenido de nuevo, administrador!',

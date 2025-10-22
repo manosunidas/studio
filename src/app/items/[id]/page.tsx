@@ -58,8 +58,7 @@ export default function ItemPage() {
   const [num1, setNum1] = useState(0);
   const [num2, setNum2] = useState(0);
 
-  const { user, isUserLoading } = useUser();
-  const isAdmin = user?.email === 'jhelenandreat@gmail.com';
+  const { user, isUserLoading, isAdmin } = useUser();
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<RequestFormData>({
     resolver: zodResolver(requestSchema),

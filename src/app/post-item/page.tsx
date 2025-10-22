@@ -4,6 +4,7 @@
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/firebase';
 import { useEffect } from 'react';
+import { isAdminUser } from '@/lib/admins';
 
 export default function PostItemPage() {
   const router = useRouter();
@@ -14,7 +15,7 @@ export default function PostItemPage() {
     // If the user is the admin, send them to their profile which is the new admin panel.
     // If not, send them to the homepage.
     if (!isUserLoading) {
-      if (user && user.email === 'jhelenandreat@gmail.com') {
+      if (user && isAdminUser(user)) {
         router.replace('/profile');
       } else {
         router.replace('/');

@@ -34,8 +34,7 @@ interface ItemCardProps {
 }
 
 export function ItemCard({ item, showDelete = false, onDelete, showEdit = false, onEdit }: ItemCardProps) {
-  const { user } = useUser();
-  const isAdmin = user?.email === 'jhelenandreat@gmail.com';
+  const { isAdmin } = useUser();
 
   return (
     <Card className="flex flex-col h-full overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">

@@ -12,6 +12,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { Resend } from 'resend';
+import { ADMIN_EMAILS } from '@/lib/admins';
 
 // Input schema for the flow
 const SendRequestEmailInputSchema = z.object({
@@ -59,7 +60,6 @@ const sendRequestEmailFlow = ai.defineFlow(
     }
 
     const resend = new Resend(resendApiKey);
-    const adminEmail = 'jhelenandreat@gmail.com';
 
     // Construct the email body as plain text
     const emailBodyText = `
@@ -88,7 +88,7 @@ Próximos Pasos:
     try {
       const { data, error } = await resend.emails.send({
         from: 'Manos Unidas Digital <onboarding@resend.dev>', // Required by Resend for free tier
-        to: adminEmail,
+        to: ADMIN_EMAILS, // Send to all admin emails
         subject: `Nueva Solicitud de Artículo: ${input.itemName}`,
         text: emailBodyText, // Use the plain text version
       });
@@ -103,7 +103,7 @@ Próximos Pasos:
 
       return {
         success: true,
-        message: `Email sent to ${adminEmail}`,
+        message: `Email sent to ${ADMIN_EMAILS.join(', ')}`,
       };
     } catch (error) {
       console.error("Catastrophic error sending email via Resend:", error);

@@ -4,7 +4,8 @@ import React, { DependencyList, createContext, useContext, ReactNode, useMemo, u
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
-import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
+import { isAdminUser } from '@/lib/admins';
 
 interface FirebaseProviderProps {
   children: ReactNode;
@@ -55,7 +56,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     user: auth?.currentUser || null, // Initialize with current user if available
     isUserLoading: true, // Start loading until first auth event
     userError: null,
-    isAdmin: auth?.currentUser?.email === 'jhelenandreat@gmail.com'
+    isAdmin: isAdminUser(auth?.currentUser)
   });
 
   // Effect to subscribe to Firebase auth state changes
@@ -69,7 +70,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       auth,
       (firebaseUser) => { // Auth state determined
         if (firebaseUser) {
-           const isAdmin = firebaseUser.email === 'jhelenandreat@gmail.com';
+           const isAdmin = isAdminUser(firebaseUser);
           setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null, isAdmin });
         } else {
           // No user is logged in
