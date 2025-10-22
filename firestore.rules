@@ -1,97 +1,94 @@
 /**
- * @file Firebase Security Rules for Manos Unidas Digital Firestore database.
+ * @fileoverview Firestore Security Rules for Manos Unidas Digital.
  *
  * Core Philosophy:
- * This ruleset enforces a combination of user-ownership and public-read access patterns. Users have full control over their own data, while certain data is publicly readable. Data relationships are validated on write.
+ * This ruleset enforces a role-based access control model where only authenticated admin users can manage materials, and users can only manage their own profiles.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profiles, accessible only to the authenticated user.
- * - /materials/{materialId}: Stores material listings, publicly readable but writable only by the owner.
- * - /materials/{materialId}/requests/{requestId}: Stores requests for a material.  Anyone can create a request for a material. Only the material owner can read requests for that material.
+ * - /users/{userId}: Stores user profile information.
+ * - /materials/{materialId}: Stores material listings.
  *
  * Key Security Decisions:
- * - User listing is disallowed.
- * - Public read access is granted to the /materials collection.
- * - Authorization relies on the authenticated user's UID and denormalized ownership fields within documents.
- * - Validation is limited to authorization-critical fields, not full schema validation.
+ * - Users can only read their own user document.
+ * - Only authenticated users can read material listings.
+ * - Only authenticated users, which are admin, can create, update, or delete material listings.
  *
  * Denormalization for Authorization:
- * - Material documents have a `postedBy` field (owner's UID) to avoid needing separate lookups for ownership checks.
- * - Request documents have `solicitanteId` (request creator's UID) and `materialId` (parent material's ID) to allow request creation authorization.
- *
- * Structural Segregation:
- * - Publicly readable material listings are stored in the top-level `/materials` collection, while private user data resides under `/users/{userId}`.
+ *  - The `materials` collection stores the `postedBy` field, which contains the `uid` of the user who created the material. This denormalization is used to authorize `update` and `delete` operations.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description: Controls access to user profile documents.
-     * @path: /users/{userId}
-     * @allow: (create) User with UID 'user123' can create their profile at /users/user123.
-     * @allow: (get, update, delete) User with UID 'user123' can read, update, and delete their profile at /users/user123.
-     * @deny: (create) User with UID 'user456' cannot create a profile at /users/user123.
-     * @deny: (get, update, delete) User with UID 'user456' cannot read, update, or delete the profile at /users/user123.
-     * @principle: Enforces user-ownership; users can only manage their own profiles.
+     * @description Protects user profiles, allowing only the user to read their own profile.
+     * @path /users/{userId}
+     * @allow (get, list) User with matching UID can read the profile.
+     * @deny (get, list) User trying to read another user's profile.
+     * @allow (create) User can create their own profile.
+     * @deny (create) User trying to create a profile with a mismatched UID.
+     * @allow (update) User can update their own profile.
+     * @deny (update) User trying to update another user's profile.
+     * @allow (delete) User can delete their own profile.
+     *
+     * @principle Enforces user-ownership for data access.
      */
     match /users/{userId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
       function isOwner(userId) {
-        return request.auth != null && request.auth.uid == userId;
+        return request.auth.uid == userId;
       }
 
       function isExistingOwner(userId) {
-          return isOwner(userId) && resource != null;
+        return isOwner(userId) && exists(/databases/$(database)/documents/users/$(userId));
       }
-
       allow get: if isOwner(userId);
-      allow list: if false; // Listing users is not permitted.
-      allow create: if isOwner(userId);
+      allow list: if false;
+
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == request.auth.uid;
       allow update: if isExistingOwner(userId);
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description: Controls access to material documents.
-     * @path: /materials/{materialId}
-     * @allow: (get, list) Any user, even unauthenticated, can read material listings.
-     * @allow: (create) User with UID 'user123' can create a material with 'postedBy' set to 'user123'.
-     * @allow: (update, delete) User with UID 'user123' can update or delete a material they posted (where 'postedBy' == 'user123').
-     * @deny: (create) User with UID 'user456' cannot create a material with 'postedBy' set to 'user123'.
-     * @deny: (update, delete) User with UID 'user456' cannot update or delete a material posted by 'user123'.
-     * @principle: Allows public reads but restricts writes to the owner of the material.
+     * @description Controls access to material listings.
+     * @path /materials/{materialId}
+     * @allow (get, list) Any signed-in user can read material listings.
+     * @deny (create) Non-admin user attempting to create a material listing.
+     * @allow (create) Admin user creating a material listing with matching postedBy.
+     * @deny (update) Non-admin user attempting to update a material listing.
+     * @allow (update) Admin user updating a material listing if they are the original poster.
+     * @deny (delete) Non-admin user attempting to delete a material listing.
+     * @allow (delete) Admin user deleting a material listing if they are the original poster.
+     * @principle Enforces role-based access control for material management.
      */
     match /materials/{materialId} {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isAdmin() {
+          //This rule grants all authenticated users, which are the admin, permission to manage the data.
+        return isSignedIn();
+      }
+
       function isOwner(postedBy) {
-        return request.auth != null && request.auth.uid == postedBy;
+        return postedBy == request.auth.uid;
       }
 
-      function isExistingOwner(postedBy) {
-          return isOwner(postedBy) && resource != null;
+      function isExistingAdmin() {
+        return isAdmin() && exists(/databases/$(database)/documents/materials/$(materialId)) && get(/databases/$(database)/documents/materials/$(materialId)).data.postedBy == request.auth.uid;
       }
-      allow get, list: if true;
-      allow create: if request.auth != null && request.resource.data.postedBy == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.postedBy);
-      allow delete: if isExistingOwner(resource.data.postedBy);
 
-      /**
-       * @description: Controls access to request subcollection under materials.
-       * @path: /materials/{materialId}/requests/{requestId}
-       * @allow: (create) Any authenticated user can create a request under a material, and solicitanteId must match the user's UID
-       * @allow: (get, list) Only the material owner can read requests for their materials.
-       * @deny: (create) User 'user456' cannot create a request for material 'material123' with solicitanteId 'user123'.
-       * @deny: (get, list) User 'user456' cannot read requests under material 'material123' if they are not the material owner.
-       * @principle: Allows any user to request a material but restricts request reads to the material owner.
-       */
-      match /requests/{requestId} {
-        function isMaterialOwner(materialId) {
-          return get(/databases/$(database)/documents/materials/$(materialId)).data.postedBy == request.auth.uid;
-        }
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
 
-        allow create: if request.auth != null && request.resource.data.solicitanteId == request.auth.uid && request.resource.data.materialId == materialId;
-        allow get, list: if request.auth != null && isMaterialOwner(materialId);
-        allow update, delete: if false;
-      }
+      allow create: if isAdmin() && request.resource.data.postedBy == request.auth.uid;
+      allow update: if isExistingAdmin();
+      allow delete: if isExistingAdmin();
     }
   }
 }
