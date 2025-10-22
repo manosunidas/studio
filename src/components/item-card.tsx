@@ -57,11 +57,13 @@ export function ItemCard({ item, showDelete = false, onDelete, showEdit = false,
             </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-grow p-4">
-        <CardTitle className="text-lg leading-tight mb-2">{item.title}</CardTitle>
-        <div className="flex flex-wrap gap-2 text-xs">
-            <Badge variant="secondary">{item.category}</Badge>
-            <Badge variant="outline">{item.condition}</Badge>
+      <CardContent className="flex-grow p-4 flex flex-col">
+        <div className="flex-grow">
+            <CardTitle className="text-lg leading-tight mb-2">{item.title}</CardTitle>
+            <div className="flex flex-wrap gap-2 text-xs">
+                <Badge variant="secondary">{item.category}</Badge>
+                <Badge variant="outline">{item.condition}</Badge>
+            </div>
         </div>
       </CardContent>
       <CardFooter className="flex flex-shrink-0 gap-2 p-4 pt-0">
