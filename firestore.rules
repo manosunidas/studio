@@ -1,94 +1,70 @@
 /**
- * @fileoverview Firestore Security Rules for Manos Unidas Digital.
- *
- * Core Philosophy:
- * This ruleset enforces a role-based access control model where only authenticated admin users can manage materials, and users can only manage their own profiles.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a role-based security model with public read access for materials.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profile information.
- * - /materials/{materialId}: Stores material listings.
+ * - /users/{userId}: Stores user profile information, write access is restricted to the user itself.
+ * - /materials/{materialId}: Stores material listings, read access is public, and write access is restricted to authenticated users.
  *
  * Key Security Decisions:
- * - Users can only read their own user document.
- * - Only authenticated users can read material listings.
- * - Only authenticated users, which are admin, can create, update, or delete material listings.
- *
- * Denormalization for Authorization:
- *  - The `materials` collection stores the `postedBy` field, which contains the `uid` of the user who created the material. This denormalization is used to authorize `update` and `delete` operations.
+ * - Public read access to the /materials collection to allow unauthenticated browsing.
+ * - Owner-only write access to the /users/{userId} collection.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Protects user profiles, allowing only the user to read their own profile.
+     * @description Controls access to user documents.
      * @path /users/{userId}
-     * @allow (get, list) User with matching UID can read the profile.
-     * @deny (get, list) User trying to read another user's profile.
-     * @allow (create) User can create their own profile.
-     * @deny (create) User trying to create a profile with a mismatched UID.
-     * @allow (update) User can update their own profile.
-     * @deny (update) User trying to update another user's profile.
-     * @allow (delete) User can delete their own profile.
-     *
-     * @principle Enforces user-ownership for data access.
+     * @allow (create) User with matching {userId} can create their own document.
+     * @allow (get, update, delete) User with matching {userId} can read/update/delete their own document.
+     * @deny (create, get, list, update, delete) Other users cannot access these documents.
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
 
       function isExistingOwner(userId) {
-        return isOwner(userId) && exists(/databases/$(database)/documents/users/$(userId));
+        return isOwner(userId) && resource != null;
       }
+
       allow get: if isOwner(userId);
       allow list: if false;
-
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == request.auth.uid;
-      allow update: if isExistingOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to material listings.
+     * @description Controls access to material documents.
      * @path /materials/{materialId}
-     * @allow (get, list) Any signed-in user can read material listings.
-     * @deny (create) Non-admin user attempting to create a material listing.
-     * @allow (create) Admin user creating a material listing with matching postedBy.
-     * @deny (update) Non-admin user attempting to update a material listing.
-     * @allow (update) Admin user updating a material listing if they are the original poster.
-     * @deny (delete) Non-admin user attempting to delete a material listing.
-     * @allow (delete) Admin user deleting a material listing if they are the original poster.
-     * @principle Enforces role-based access control for material management.
+     * @allow (get, list) Anyone can read material documents.
+     * @allow (create) Authenticated users can create material documents, postedBy is owner
+     * @allow (update, delete) Owner (postedBy) can update/delete the material document.
+     * @deny (create, update, delete) Unauthenticated users and non-owners cannot write.
+     * @principle Allows public read access, but restricts writes to authenticated users.
      */
     match /materials/{materialId} {
       function isSignedIn() {
         return request.auth != null;
       }
 
-      function isAdmin() {
-          //This rule grants all authenticated users, which are the admin, permission to manage the data.
-        return isSignedIn();
-      }
-
       function isOwner(postedBy) {
-        return postedBy == request.auth.uid;
+        return request.auth != null && request.auth.uid == postedBy;
       }
 
-      function isExistingAdmin() {
-        return isAdmin() && exists(/databases/$(database)/documents/materials/$(materialId)) && get(/databases/$(database)/documents/materials/$(materialId)).data.postedBy == request.auth.uid;
+       function isExistingOwner(postedBy) {
+        return isOwner(postedBy) && resource != null;
       }
 
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-
-      allow create: if isAdmin() && request.resource.data.postedBy == request.auth.uid;
-      allow update: if isExistingAdmin();
-      allow delete: if isExistingAdmin();
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && request.resource.data.postedBy == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.postedBy);
+      allow delete: if isExistingOwner(resource.data.postedBy);
     }
   }
 }
