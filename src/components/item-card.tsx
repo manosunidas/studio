@@ -39,7 +39,7 @@ export function ItemCard({ item, showDelete = false, onDelete, showEdit = false,
 
   return (
     <Card className="flex flex-col h-full overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-      <CardHeader className="relative p-0">
+      <CardHeader className="relative p-0 flex-shrink-0">
         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-md">
           <Image
             src={item.imageUrl}
