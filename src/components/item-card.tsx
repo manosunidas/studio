@@ -62,9 +62,8 @@ export function ItemCard({ item, showDelete = false, onDelete, showEdit = false,
             alt={item.title}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            // Use 'object-contain' to ensure the entire image is visible without being cropped.
-            // This is crucial for compatibility with Safari on iOS.
-            className="object-contain"
+            // Use `!object-contain` to force this style and override any conflicting CSS rules, especially for Safari on iOS.
+            className="!object-contain"
             data-ai-hint={item.imageHint}
           />
            <div className="absolute top-2 left-2">
