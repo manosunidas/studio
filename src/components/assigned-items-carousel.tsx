@@ -13,9 +13,19 @@ import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, where, limit } from 'firebase/firestore';
 import type { Item } from '@/lib/types';
 
+/**
+ * @fileoverview AssignedItemsCarousel component.
+ * This component displays a carousel of items that have been successfully
+ * assigned to a recipient. It serves as a showcase of the platform's impact.
+ * It fetches the 8 most recent items with the status "Asignado".
+ */
 
 export function AssignedItemsCarousel() {
   const firestore = useFirestore();
+  
+  // Memoize the Firestore query to fetch assigned items.
+  // The query fetches documents from the 'materials' collection where 'status' is 'Asignado',
+  // and limits the result to 8 to keep the carousel concise.
   const assignedItemsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
@@ -25,8 +35,10 @@ export function AssignedItemsCarousel() {
     );
   }, [firestore]);
 
+  // Use the custom useCollection hook to fetch and subscribe to the query results.
   const { data: assignedItems, isLoading } = useCollection<Item>(assignedItemsQuery);
   
+  // If data is loading or no assigned items are found, do not render the component.
   if (isLoading || !assignedItems || assignedItems.length === 0) {
     return null;
   }
@@ -44,7 +56,8 @@ export function AssignedItemsCarousel() {
             <Carousel
                 opts={{
                     align: "start",
-                    loop: assignedItems.length > 4, // Only loop if there are enough items to scroll
+                    // Only loop the carousel if there are enough items to make scrolling meaningful.
+                    loop: assignedItems.length > 4,
                 }}
                 className="w-full"
             >

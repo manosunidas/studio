@@ -25,6 +25,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
+/**
+ * @fileoverview ItemCard component.
+ * This component displays a single donation item in a card format.
+ * It shows the item's image, title, category, condition, and status.
+ * It also includes action buttons like "Ver Detalles" and, for administrators,
+ * "Editar" and "Eliminar".
+ */
+
 interface ItemCardProps {
   item: Item;
   showDelete?: boolean;
@@ -33,6 +41,15 @@ interface ItemCardProps {
   onEdit?: (item: Item) => void;
 }
 
+/**
+ * Renders a card for a single donation item.
+ * @param {ItemCardProps} props - The props for the component.
+ * @param {Item} props.item - The item data to display.
+ * @param {boolean} [props.showDelete=false] - If true, shows the delete button for admins.
+ * @param {(id: string) => void} [props.onDelete] - Callback function when the delete button is clicked.
+ * @param {boolean} [props.showEdit=false] - If true, shows the edit button for admins.
+ * @param {(item: Item) => void} [props.onEdit] - Callback function when the edit button is clicked.
+ */
 export function ItemCard({ item, showDelete = false, onDelete, showEdit = false, onEdit }: ItemCardProps) {
   const { isAdmin } = useUser();
 
@@ -45,10 +62,13 @@ export function ItemCard({ item, showDelete = false, onDelete, showEdit = false,
             alt={item.title}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            // Use 'object-contain' to ensure the entire image is visible without being cropped.
+            // This is crucial for compatibility with Safari on iOS.
             className="object-contain"
             data-ai-hint={item.imageHint}
           />
            <div className="absolute top-2 left-2">
+              {/* Display a badge indicating the item's status (Disponible or Asignado). */}
               {item.status === 'Asignado' ? (
                 <Badge variant="destructive">Asignado</Badge>
               ) : (
@@ -67,17 +87,21 @@ export function ItemCard({ item, showDelete = false, onDelete, showEdit = false,
         </div>
       </CardContent>
       <CardFooter className="flex flex-shrink-0 gap-2 p-4 pt-0">
+        {/* Link to the detailed item page. */}
         <Button asChild variant="secondary" className="w-full">
           <Link href={`/items/${item.id}`}>
             Ver Detalles <ArrowRight className="ml-2" />
           </Link>
         </Button>
+        
+        {/* Admin-only action buttons. */}
          {isAdmin && showEdit && onEdit && (
             <Button variant="outline" size="icon" title="Editar artículo" onClick={() => onEdit(item)}>
               <Pencil />
             </Button>
          )}
          {isAdmin && showDelete && onDelete && (
+          // Use an AlertDialog to confirm deletion.
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="icon" title="Eliminar artículo">

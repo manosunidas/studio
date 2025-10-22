@@ -15,6 +15,14 @@ import { useEffect } from 'react';
 import { useUser } from '@/firebase';
 import { isAdminUser } from '@/lib/admins';
 
+/**
+ * @fileoverview LoginPage component.
+ * This page provides a login interface specifically for administrators.
+ * It uses Firebase Authentication with the Google provider.
+ * If a non-admin user attempts to log in, they are shown an error and redirected.
+ * If a user is already logged in as an admin, they are redirected to the admin profile page.
+ */
+
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -22,31 +30,42 @@ export default function LoginPage() {
   const auth = getAuth();
 
   useEffect(() => {
+    // This effect handles redirection for already logged-in users.
     if (!isUserLoading && user && !user.isAnonymous) {
       if (isAdmin) {
+         // If the user is an admin, inform them and redirect to the admin panel.
          toast({
           title: 'Ya has iniciado sesión',
           description: 'Redirigiendo al panel de administrador.',
         });
         router.replace('/profile');
       } else {
-         // Non-admin users are not supposed to log in.
-         // If they somehow do, just send them to the home page.
+         // If a non-admin user is somehow logged in, just send them to the homepage.
         router.replace('/');
       }
     }
   }, [user, isUserLoading, isAdmin, router, toast]);
 
 
+  /**
+   * Handles the Google login process.
+   * It initiates the Firebase Google sign-in popup. After a successful sign-in,
+   * it checks if the user's email is in the list of administrators.
+   * If they are an admin, they are redirected. Otherwise, they are signed out,
+   * shown an error message, and redirected to the homepage.
+   */
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
+    // Force account selection every time.
     provider.setCustomParameters({
       prompt: 'select_account'
     });
+
     try {
       const result = await signInWithPopup(auth, provider);
       const signedInUser = result.user;
 
+      // Check if the signed-in user is an administrator.
       if (isAdminUser(signedInUser)) {
          toast({
             title: 'Inicio de sesión exitoso',
@@ -54,7 +73,7 @@ export default function LoginPage() {
           });
           router.push('/profile');
       } else {
-          // If a non-admin user signs in, show a message and keep them on the homepage
+          // If a non-admin user signs in, show an error, sign them out, and redirect.
           await auth.signOut();
           toast({
             variant: 'destructive',
@@ -65,9 +84,11 @@ export default function LoginPage() {
       }
 
     } catch (error: any) {
+      // Ignore the common error when a user closes the popup without signing in.
       if (error.code === 'auth/popup-closed-by-user') {
         return;
       }
+      // Show other errors in a toast.
       toast({
         variant: 'destructive',
         title: 'Error al iniciar sesión',

@@ -12,15 +12,29 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 
+/**
+ * @fileoverview RegisterPage component.
+ * This component provides an interface for users to "register".
+ * In this application's context, registration is simulated and primarily serves as a way
+ * to guide legitimate administrators to the login flow.
+ * It uses Firebase's Google sign-in popup. After a successful sign-in,
+ * it redirects the user to their profile page, which is the intended behavior
+ * for an admin.
+ */
 export default function RegisterPage() {
   const router = useRouter();
   const { toast } = useToast();
 
+  /**
+   * Handles the Google sign-in process for registration.
+   * This is functionally identical to a login but provides user feedback
+   * appropriate for a registration flow.
+   */
   const handleGoogleLogin = async () => {
     const auth = getAuth();
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
-      prompt: 'select_account'
+      prompt: 'select_account' // Always asks the user to select an account.
     });
 
     try {
@@ -29,8 +43,10 @@ export default function RegisterPage() {
         title: '¡Cuenta creada!',
         description: 'Ahora puedes iniciar sesión con tus credenciales.',
       });
+      // Redirect to the profile page, which is the admin dashboard.
       router.push('/profile');
     } catch (error: any) {
+      // Display any errors during the sign-in process.
       toast({
         variant: 'destructive',
         title: 'Error al registrarse',

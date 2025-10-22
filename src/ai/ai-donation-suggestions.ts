@@ -15,7 +15,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-// Define the input schema
+// Define the input schema for the donation suggestion AI model.
 const SuggestDonationItemsInputSchema = z.object({
   userProfile: z
     .string()
@@ -29,7 +29,7 @@ const SuggestDonationItemsInputSchema = z.object({
 
 export type SuggestDonationItemsInput = z.infer<typeof SuggestDonationItemsInputSchema>;
 
-// Define the output schema
+// Define the output schema for the donation suggestion AI model.
 const SuggestDonationItemsOutputSchema = z.object({
   suggestedItems: z
     .string()
@@ -38,12 +38,16 @@ const SuggestDonationItemsOutputSchema = z.object({
 
 export type SuggestDonationItemsOutput = z.infer<typeof SuggestDonationItemsOutputSchema>;
 
-// Define the main function
+/**
+ * Main function to get donation suggestions. This is the entry point for the flow.
+ * @param input - The input data containing user profile, location, community needs, and available items.
+ * @returns A promise that resolves to the suggested donation items.
+ */
 export async function suggestDonationItems(input: SuggestDonationItemsInput): Promise<SuggestDonationItemsOutput> {
   return suggestDonationItemsFlow(input);
 }
 
-// Define the prompt
+// Define the Genkit prompt for the AI model.
 const suggestDonationItemsPrompt = ai.definePrompt({
   name: 'suggestDonationItemsPrompt',
   input: {schema: SuggestDonationItemsInputSchema},
@@ -54,7 +58,7 @@ const suggestDonationItemsPrompt = ai.definePrompt({
   Respond in Spanish.`, // Ensure the response is in Spanish
 });
 
-// Define the flow
+// Define the Genkit flow that uses the prompt to generate suggestions.
 const suggestDonationItemsFlow = ai.defineFlow(
   {
     name: 'suggestDonationItemsFlow',
@@ -62,6 +66,7 @@ const suggestDonationItemsFlow = ai.defineFlow(
     outputSchema: SuggestDonationItemsOutputSchema,
   },
   async input => {
+    // Execute the prompt and get the output.
     const {output} = await suggestDonationItemsPrompt(input);
     return output!;
   }

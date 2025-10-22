@@ -1,5 +1,11 @@
 import Link from 'next/link';
 
+/**
+ * @fileoverview Footer component for the application.
+ * Displays the copyright information and year. It is designed to be simple
+ * and consistent across all pages.
+ */
+
 export function Footer() {
   return (
     <footer className="bg-card border-t">

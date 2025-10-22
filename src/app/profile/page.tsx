@@ -51,7 +51,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Switch } from '@/components/ui/switch';
 
+/**
+ * @fileoverview Admin Profile Page.
+ * This page serves as the main dashboard for administrators. It includes functionality
+ * for viewing all listed items, managing their status (Disponible/Asignado),
+ * editing their details, deleting them, and posting new items.
+ * The page is protected and only accessible to users authenticated as admins.
+ */
 
+
+// Zod schema for validating the new/edit item form.
 const itemFormSchema = z.object({
   title: z.string().min(1, 'El título es obligatorio'),
   description: z.string().min(1, 'La descripción es obligatoria'),
@@ -63,6 +72,11 @@ const itemFormSchema = z.object({
 
 type ItemFormData = z.infer<typeof itemFormSchema>;
 
+/**
+ * A form component for posting a new item.
+ * @param {{ onFormSubmit: () => void }} props - Props for the component.
+ * @param {() => void} props.onFormSubmit - A callback function to be called after the form is successfully submitted. Used to refresh data.
+ */
 function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -73,6 +87,10 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
     resolver: zodResolver(itemFormSchema),
   });
 
+  /**
+   * Handles the form submission to create a new item in Firestore.
+   * @param data The validated form data.
+   */
   const onSubmit = (data: ItemFormData) => {
     if (!user || !firestore) return;
     
@@ -93,9 +111,10 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
             title: '¡Artículo publicado!',
             description: 'El artículo ahora está visible para la comunidad.',
         });
-        reset();
-        onFormSubmit();
+        reset(); // Clear the form
+        onFormSubmit(); // Trigger data refresh on the parent page
     }).catch((serverError) => {
+      // Handle permission errors by emitting a global error for debugging.
       const permissionError = new FirestorePermissionError({
         path: materialsCollection.path,
         operation: 'create',
@@ -139,6 +158,7 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
                  {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Category, Condition, and Grade Level Selectors */}
                 <div className="grid gap-2">
                   <Label htmlFor="category">Categoría</Label>
                   <Controller
@@ -222,6 +242,13 @@ function PostItemForm({ onFormSubmit }: { onFormSubmit: () => void }) {
   );
 }
 
+/**
+ * A form component for editing an existing item. Rendered inside a dialog.
+ * @param {{ item: Item; onFormSubmit: () => void; onCancel: () => void }} props - Component props.
+ * @param {Item} props.item - The item object to be edited.
+ * @param {() => void} props.onFormSubmit - Callback to run on successful submission.
+ * @param {() => void} props.onCancel - Callback to run when the dialog is cancelled.
+ */
 function EditItemForm({ item, onFormSubmit, onCancel }: { item: Item, onFormSubmit: () => void, onCancel: () => void }) {
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -229,7 +256,7 @@ function EditItemForm({ item, onFormSubmit, onCancel }: { item: Item, onFormSubm
 
   const { register, handleSubmit, control, formState: { errors } } = useForm<ItemFormData>({
     resolver: zodResolver(itemFormSchema),
-    defaultValues: {
+    defaultValues: { // Pre-fill the form with the existing item's data.
       title: item.title,
       description: item.description,
       category: item.category,
@@ -239,6 +266,10 @@ function EditItemForm({ item, onFormSubmit, onCancel }: { item: Item, onFormSubm
     },
   });
 
+  /**
+   * Handles the form submission to update an existing item in Firestore.
+   * @param data The validated form data.
+   */
   const onSubmit = (data: ItemFormData) => {
     if (!firestore) return;
 
@@ -253,8 +284,9 @@ function EditItemForm({ item, onFormSubmit, onCancel }: { item: Item, onFormSubm
         title: '¡Artículo actualizado!',
         description: 'Los cambios han sido guardados.',
       });
-      onFormSubmit();
+      onFormSubmit(); // Close dialog and refresh data
     }).catch((serverError) => {
+      // Handle permission errors
       const permissionError = new FirestorePermissionError({
         path: itemRef.path,
         operation: 'update',
@@ -281,6 +313,7 @@ function EditItemForm({ item, onFormSubmit, onCancel }: { item: Item, onFormSubm
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-6">
+           {/* Form fields for editing, similar to PostItemForm */}
           <div className="grid gap-2">
             <Label htmlFor="title">Título del Artículo</Label>
             <Input id="title" {...register('title')} disabled={isSubmitting} />
@@ -380,14 +413,18 @@ function EditItemForm({ item, onFormSubmit, onCancel }: { item: Item, onFormSubm
 }
 
 
+/**
+ * The main component for the admin profile page.
+ */
 export default function ProfilePage() {
   const router = useRouter();
   const { user, isUserLoading, isAdmin } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0); // A key to force-refresh the item list.
+  const [editingItem, setEditingItem] = useState<Item | null>(null); // State to hold the item being edited.
 
+  // Effect to protect the route and redirect non-admins.
   useEffect(() => {
     if (!isUserLoading && (!user || user.isAnonymous || !isAdmin)) {
       toast({
@@ -399,13 +436,18 @@ export default function ProfilePage() {
     }
   }, [user, isUserLoading, isAdmin, router, toast]);
 
+  // Memoize the query to fetch all items. The admin sees all items.
   const userItemsQuery = useMemoFirebase(() => {
     if (!firestore || !isAdmin) return null;
-    return query(collection(firestore, 'materials')); // Admin sees all materials
+    return query(collection(firestore, 'materials'));
   }, [firestore, isAdmin, refreshKey]);
 
   const { data: userItems, isLoading: userItemsLoading } = useCollection<Item>(userItemsQuery);
 
+  /**
+   * Handles the deletion of an item.
+   * @param itemId The ID of the item to delete.
+   */
   const handleDeleteItem = async (itemId: string) => {
     if (!firestore) return;
     const itemRef = doc(firestore, 'materials', itemId);
@@ -415,8 +457,9 @@ export default function ProfilePage() {
             title: 'Artículo eliminado',
             description: 'Tu publicación ha sido eliminada con éxito.'
         });
-        setRefreshKey(prev => prev + 1);
+        setRefreshKey(prev => prev + 1); // Refresh data
     }).catch((serverError) => {
+        // Handle permission errors
         const permissionError = new FirestorePermissionError({
             path: itemRef.path,
             operation: 'delete',
@@ -430,6 +473,10 @@ export default function ProfilePage() {
     });
   }
 
+  /**
+   * Toggles the status of an item between 'Disponible' and 'Asignado'.
+   * @param item The item to update.
+   */
   const handleToggleStatus = async (item: Item) => {
     if (!firestore) return;
     const newStatus = item.status === 'Disponible' ? 'Asignado' : 'Disponible';
@@ -441,8 +488,9 @@ export default function ProfilePage() {
         title: 'Estado Actualizado',
         description: `El artículo ahora está ${newStatus.toLowerCase()}.`
       });
-      handleAction();
+      handleAction(); // Refresh data
     }).catch((serverError) => {
+      // Handle permission errors
       const permissionError = new FirestorePermissionError({
           path: itemRef.path,
           operation: 'update',
@@ -457,23 +505,39 @@ export default function ProfilePage() {
     });
   };
 
+  /**
+   * A generic callback to trigger a data refresh by updating the refreshKey.
+   */
   const handleAction = useCallback(() => {
     setRefreshKey(prev => prev + 1);
   }, []);
   
+  /**
+   * Sets the item to be edited, which opens the edit dialog.
+   * @param item The item to edit.
+   */
   const handleEdit = (item: Item) => {
     setEditingItem(item);
   };
 
+  /**
+   * Callback for when the edit form is submitted. Closes the dialog and refreshes data.
+   */
   const handleEditFormSubmit = () => {
     setEditingItem(null);
     handleAction();
   };
 
+  // Show loading screen while user data is being fetched.
   if (isUserLoading || !user || !isAdmin) {
     return <div className="container text-center py-20">Cargando...</div>;
   }
   
+  /**
+   * Generates initials from a user's display name for the avatar fallback.
+   * @param name The user's display name.
+   * @returns The user's initials or 'A' as a default.
+   */
   const getInitials = (name: string | null | undefined) => {
     if (!name) return 'A';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -549,6 +613,7 @@ export default function ProfilePage() {
 
       </Tabs>
       
+      {/* Edit Item Dialog */}
       <Dialog open={!!editingItem} onOpenChange={(isOpen) => !isOpen && setEditingItem(null)}>
         {editingItem && <EditItemForm item={editingItem} onFormSubmit={handleEditFormSubmit} onCancel={() => setEditingItem(null)} />}
       </Dialog>

@@ -35,7 +35,16 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
+/**
+ * @fileoverview ItemPage component.
+ * This page displays the detailed information for a single donation item.
+ * It allows anonymous users to request an item by filling out a form,
+ * which triggers an email notification to the administrators.
+ * Administrators are not allowed to request items.
+ */
 
+
+// Zod schema for validating the item request form.
 const requestSchema = z.object({
   nombreCompleto: z.string().min(3, 'El nombre es obligatorio'),
   direccion: z.string().min(5, 'La dirección es obligatoria'),
@@ -46,6 +55,9 @@ const requestSchema = z.object({
 
 type RequestFormData = z.infer<typeof requestSchema>;
 
+/**
+ * The main component for displaying a single item's details.
+ */
 export default function ItemPage() {
   const params = useParams();
   const id = params.id as string;
@@ -54,7 +66,7 @@ export default function ItemPage() {
   const { toast } = useToast();
   const [isRequestDialogOpen, setRequestDialogOpen] = useState(false);
   
-  // State for captcha
+  // State for the simple math-based captcha to prevent spam.
   const [num1, setNum1] = useState(0);
   const [num2, setNum2] = useState(0);
 
@@ -65,7 +77,7 @@ export default function ItemPage() {
   });
   
   useEffect(() => {
-    // Generate new captcha numbers when the dialog opens or on component mount
+    // Generate new captcha numbers whenever the request dialog opens.
     if (isRequestDialogOpen) {
       setNum1(Math.floor(Math.random() * 10) + 1);
       setNum2(Math.floor(Math.random() * 10) + 1);
@@ -73,17 +85,24 @@ export default function ItemPage() {
   }, [isRequestDialogOpen]);
 
 
+  // Memoize the Firestore document reference to prevent re-renders.
   const itemRef = useMemoFirebase(() => {
     if (!firestore || !id) return null;
     return doc(firestore, 'materials', id);
   }, [firestore, id]);
 
+  // Fetch the item data in real-time using a custom hook.
   const { data: item, isLoading: isItemLoading } = useDoc<Item>(itemRef);
 
+  /**
+   * Handles the submission of the item request form.
+   * Validates the captcha, then calls the Genkit flow to send an email.
+   * @param data The validated form data.
+   */
   const handleRequestSubmit: SubmitHandler<RequestFormData> = async (data) => {
     if (!item) return;
 
-    // CAPTCHA validation
+    // Simple CAPTCHA validation.
     const correctAnswer = num1 + num2;
     if (parseInt(data.captcha, 10) !== correctAnswer) {
       toast({
@@ -95,6 +114,7 @@ export default function ItemPage() {
     }
 
     try {
+      // Call the server-side Genkit flow to send the notification email.
       const result = await sendRequestEmail({
         requesterName: data.nombreCompleto,
         requesterAddress: data.direccion,
@@ -114,7 +134,7 @@ export default function ItemPage() {
       });
         
       setRequestDialogOpen(false);
-      reset();
+      reset(); // Reset form fields after successful submission.
 
     } catch(e: any) {
         console.error("Error sending request email:", e);
@@ -126,16 +146,24 @@ export default function ItemPage() {
     }
   };
   
+  // Show a loading indicator while fetching item and user data.
   if (isItemLoading || isUserLoading) {
     return <div className="container text-center py-20">Cargando artículo...</div>;
   }
 
+  // Show a message if the item is not found.
   if (!item) {
     return <div className="container text-center py-20">Artículo no encontrado.</div>;
   }
   
   const isAvailable = item.status === 'Disponible';
 
+  /**
+   * Renders the request button based on the item's availability and user's role.
+   * - Shows nothing if the item is not "Disponible".
+   * - Shows a disabled button with a tooltip for admin users.
+   * - Shows the request dialog trigger for anonymous users.
+   */
   const renderRequestButton = () => {
     if (!isAvailable) {
       return null;
@@ -161,7 +189,7 @@ export default function ItemPage() {
        )
     }
 
-    // Button for anonymous users
+    // Button for anonymous/non-admin users which opens the request form dialog.
     return (
         <Dialog open={isRequestDialogOpen} onOpenChange={setRequestDialogOpen}>
             <DialogTrigger asChild>
@@ -218,7 +246,13 @@ export default function ItemPage() {
     );
   }
 
+  /**
+   * Formats the Firestore Timestamp into a human-readable string in Spanish.
+   * Handles potential errors during date conversion.
+   * @returns The formatted date string or a fallback message.
+   */
   const getFormattedDate = () => {
+    // Firestore timestamps need to be converted to JS Date objects.
     if (item.datePosted && typeof item.datePosted.toDate === 'function') {
       try {
         return format(item.datePosted.toDate(), "dd 'de' MMMM 'de' yyyy", { locale: es });
