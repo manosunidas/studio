@@ -1,3 +1,4 @@
+// cargue forzado
 'use client';
 
 import { useState, useEffect } from 'react';

@@ -1,3 +1,4 @@
+// cargue forzado
 export const firebaseConfig = {
   apiKey: "AIzaSyDxZLymhfGGK7ddMMKw8yEFO73ytiPAW1U",
   authDomain: "studio-1933739816-d9066.firebaseapp.com",

@@ -1,3 +1,4 @@
+// cargue forzado
 'use client';
 
 import Link from 'next/link';

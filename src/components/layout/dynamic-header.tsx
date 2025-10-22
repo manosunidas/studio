@@ -1,3 +1,4 @@
+// cargue forzado
 'use client';
 
 import Link from 'next/link';
@@ -127,8 +128,7 @@ export function DynamicHeaderContent() {
               </DropdownMenu>
             ) : (
               <Button asChild>
-                <Link href="/login">Iniciar Sesión (Admin)</Link>
-              </Button>
+                <Link href="/login">Iniciar Sesión (Admin)</Link>              </Button>
             )}
           </div>
         </div>

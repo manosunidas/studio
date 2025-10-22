@@ -1,3 +1,4 @@
+// cargue forzado
 import type { Item } from './types';
 import { PlaceHolderImages } from './placeholder-images';
 

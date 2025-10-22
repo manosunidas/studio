@@ -1,3 +1,4 @@
+// cargue forzado
 import type {Config} from 'tailwindcss';
 
 export default {

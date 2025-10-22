@@ -1,3 +1,4 @@
+// cargue forzado
 import type { User } from 'firebase/auth';
 
 /**
