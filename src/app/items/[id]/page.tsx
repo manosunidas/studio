@@ -267,12 +267,12 @@ export default function ItemPage() {
   return (
     <div className="container mx-auto px-4 md:px-6 py-12 md:py-20">
       <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
-        <div className="relative aspect-square w-full rounded-lg overflow-hidden shadow-lg">
+        <div className="relative aspect-square w-full rounded-lg overflow-hidden shadow-lg bg-gray-100 dark:bg-gray-800">
           <Image
             src={item.imageUrl}
             alt={item.title}
             fill
-            className="!object-contain rounded-lg"
+            className="!object-contain h-full w-full rounded-lg"
             sizes="(max-width: 768px) 100vw, 50vw"
             data-ai-hint={item.imageHint}
           />
